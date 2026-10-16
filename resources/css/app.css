@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+@source '../../resources/views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Custom colors matching the design */
+    --color-sidebar: #0F1B2D;
+    --color-sidebar-dark: #0A1220;
+    --color-sidebar-hover: #1A2B42;
+    --color-sidebar-active: #FFFFFF;
+    --color-primary: #1E3A5F;
+    --color-primary-dark: #0F1B2D;
+    --color-accent: #2563EB;
+    --color-accent-hover: #1D4ED8;
+    --color-success: #16A34A;
+    --color-success-light: #DCFCE7;
+    --color-danger: #DC2626;
+    --color-danger-light: #FEE2E2;
+    --color-warning: #F59E0B;
+    --color-warning-light: #FEF3C7;
+    --color-surface: #F8FAFC;
+    --color-card: #FFFFFF;
+    --color-border: #E2E8F0;
+    --color-border-light: #F1F5F9;
+    --color-text-primary: #0F172A;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94A3B8;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+}
+
+/* Progress bar animation */
+@keyframes progress-fill {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+.animate-progress {
+    animation: progress-fill 1.5s ease-out forwards;
+}
+
+/* Pulse animation for processing */
+@keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.animate-pulse-soft {
+    animation: pulse-soft 1.5s ease-in-out infinite;
+}
+
+/* Upload card drag-over state */
+.upload-dropzone.drag-over {
+    border-color: #2563EB !important;
+    background-color: #EFF6FF !important;
+}
+
+/* Smooth transition for all interactive elements */
+.transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Table row hover */
+.table-row-hover:hover {
+    background-color: #F8FAFC;
+}
+
+/* Status badge animations */
+.badge-enter {
+    animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes badge-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Shimmer loading effect */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}

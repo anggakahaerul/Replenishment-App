@@ -32,6 +32,11 @@ class ImportReplenishmentRequest extends FormRequest
                 'mimes:xlsx,xls',
                 'max:10240', // 10MB
             ],
+            'branch_id' => [
+                'nullable',
+                'integer',
+                'exists:branches,id',
+            ],
         ];
     }
 

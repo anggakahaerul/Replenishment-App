@@ -1,21 +1,99 @@
-<x-layout title="Analysis Replenishment History">
-    <div class="p-6">
+<x-layout title="Analisa Replenishment Report History">
+    <div class="modern-page">
         {{-- ===== PAGE HEADER ===== --}}
-        <div class="flex items-start justify-between mb-6">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap;">
             <div>
-                <div class="flex items-center gap-1.5 text-[10px] font-semibold text-[#64748B] tracking-wider uppercase mb-1">
-                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    MANAJEMEN OPERASIONAL GUDANG
-                </div>
-                <h1 class="text-[22px] font-bold text-[#0F172A] leading-tight">Analisa Replenishment Report History</h1>
-                <p class="text-[13px] text-[#64748B] mt-1">Riwayat data Analisa Replenishment yang telah berhasil di-import ke sistem</p>
+                <h1 style="font-size: 20px; font-weight: 800; color: #0F172A; margin: 0;">Analisa Replenishment History</h1>
+                <p style="font-size: 12.5px; color: #64748B; margin: 3px 0 0 0;">Riwayat file Analisa Replenishment yang telah di-import ke sistem</p>
             </div>
 
-            <div class="flex items-center gap-2.5">
-                <a href="{{ route('replenishment.index') }}" class="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-[#0F172A] hover:bg-[#1E293B] shadow-sm transition-smooth">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                {{-- Filter Cabang (Modern Dropdown) --}}
+                @php
+                    $selectedBranchObj = ($branches ?? collect())->firstWhere('id', (int)($selectedBranchId ?? 0));
+                    $selectedBranchLabel = $selectedBranchObj
+                        ? (strtolower(preg_replace('/[^a-z0-9]/i', '', $selectedBranchObj->code)) !== strtolower(preg_replace('/[^a-z0-9]/i', '', $selectedBranchObj->name))
+                            ? $selectedBranchObj->code . ' • ' . $selectedBranchObj->name
+                            : $selectedBranchObj->code)
+                        : 'Semua Cabang';
+                @endphp
+                <form action="{{ route('replenishment.analysis-history') }}" method="GET" style="margin: 0;" x-data="{ open: false, selectedVal: '{{ $selectedBranchId ?? '' }}' }">
+                    <input type="hidden" name="branch_id" x-model="selectedVal">
+                    @if(auth()->user()?->hasGlobalBranchAccess())
+                        <div class="modern-dd-wrap" @click.outside="open = false">
+                            <button type="button"
+                                    @click="open = !open"
+                                    class="modern-dd-btn"
+                                    :class="open ? 'modern-dd-btn-active' : ''">
+                                <svg style="width: 13px; height: 13px; color: #64748B;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                <span style="font-size: 11.5px; font-weight: 600; color: #64748B;">Cabang:</span>
+                                <span style="font-size: 12px; font-weight: 700; color: #0F172A;">{{ $selectedBranchLabel }}</span>
+                                <svg style="width: 13px; height: 13px; color: #64748B; transition: transform 0.15s ease;"
+                                     :style="open ? 'transform: rotate(180deg)' : ''"
+                                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            <div x-show="open"
+                                 x-cloak
+                                 x-transition:enter="transition ease-out duration-100"
+                                 x-transition:enter-start="opacity-0 scale-95"
+                                 x-transition:enter-end="opacity-100 scale-100"
+                                 x-transition:leave="transition ease-in duration-75"
+                                 x-transition:leave-start="opacity-100 scale-100"
+                                 x-transition:leave-end="opacity-0 scale-95"
+                                 class="modern-dd-menu">
+                                <button type="button"
+                                        @click="selectedVal = ''; $nextTick(() => $el.closest('form').submit())"
+                                        class="modern-dd-item {{ ($selectedBranchId ?? '') === '' ? 'modern-dd-item-selected' : '' }}">
+                                    <span>Semua Cabang</span>
+                                    @if(($selectedBranchId ?? '') === '')
+                                        <svg style="width: 14px; height: 14px; color: #2563EB; flex-shrink: 0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    @endif
+                                </button>
+                                @foreach($branches ?? [] as $b)
+                                    @php
+                                        $isSameName = strtolower(preg_replace('/[^a-z0-9]/i', '', $b->code)) === strtolower(preg_replace('/[^a-z0-9]/i', '', $b->name));
+                                        $isSelected = (string)($selectedBranchId ?? '') === (string)$b->id;
+                                    @endphp
+                                    <button type="button"
+                                            @click="selectedVal = '{{ $b->id }}'; $nextTick(() => $el.closest('form').submit())"
+                                            class="modern-dd-item {{ $isSelected ? 'modern-dd-item-selected' : '' }}">
+                                        <div>
+                                            <div style="font-weight: 700; line-height: 1.25;">{{ $b->code }}</div>
+                                            @if(!$isSameName)
+                                                <div style="font-size: 11px; color: #64748B; font-weight: 500; margin-top: 1px;">{{ $b->name }}</div>
+                                            @endif
+                                        </div>
+                                        @if($isSelected)
+                                            <svg style="width: 14px; height: 14px; color: #2563EB; flex-shrink: 0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        <div class="modern-dd-btn" style="cursor: default;">
+                            <svg style="width: 13px; height: 13px; color: #64748B;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            <span style="font-size: 11.5px; font-weight: 600; color: #64748B;">Cabang:</span>
+                            <span style="font-size: 12px; font-weight: 700; color: #2563EB;">
+                                {{ auth()->user()?->branch?->code ?? '-' }}
+                            </span>
+                        </div>
+                    @endif
+                </form>
+
+                <a href="{{ route('replenishment.index') }}" style="display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; font-size: 12px; font-weight: 600; color: #ffffff; background-color: #0F172A; border-radius: 10px; text-decoration: none;">
+                    <svg style="width: 14px; height: 14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                     </svg>
                     Upload & Matching Baru
@@ -24,78 +102,99 @@
         </div>
 
         @if($analyses->isEmpty())
-            <div class="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-12 text-center">
-                <div class="w-16 h-16 rounded-2xl bg-[#F1F5F9] flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-8 h-8 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                </div>
-                <h2 class="text-[16px] font-semibold text-[#0F172A] mb-1">Belum ada data history</h2>
-                <p class="text-[13px] text-[#64748B] mb-4">Import file Analisa Replenishment di halaman Matching Report untuk mulai mencatat history.</p>
-                <a href="{{ route('replenishment.index') }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-semibold text-white bg-[#0F172A] hover:bg-[#1E293B] transition-smooth">
+            <div class="modern-card" style="padding: 48px; text-align: center;">
+                <h2 style="font-size: 15px; font-weight: 700; color: #0F172A; margin: 0 0 4px 0;">Belum ada data history</h2>
+                <p style="font-size: 12.5px; color: #64748B; margin: 0 0 16px 0;">Import file Analisa Replenishment di halaman Matching Report untuk mulai mencatat history.</p>
+                <a href="{{ route('replenishment.index') }}" style="display: inline-flex; align-items: center; height: 34px; padding: 0 14px; font-size: 12px; font-weight: 600; color: #ffffff; background-color: #2563EB; border-radius: 8px; text-decoration: none;">
                     Ke Halaman Matching
                 </a>
             </div>
         @else
-            <div class="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-                <div class="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-                    <div>
-                        <h2 class="text-[15px] font-bold text-[#0F172A]">Daftar File Analisa Ter-import</h2>
-                        <p class="text-[12px] text-[#64748B]">Total {{ $analyses->total() }} file Analisa Replenishment tersimpan di database</p>
+            <div class="modern-card">
+                <div class="modern-card-header">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 13px; font-weight: 700; color: #0F172A;">Daftar File Analisa Ter-import</span>
+                        <span style="font-size: 11px; font-weight: 600; color: #475569; background-color: #F1F5F9; padding: 2px 8px; border-radius: 999px;">
+                            {{ $analyses->total() }} File
+                        </span>
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
-                    <table class="w-full">
+                <div style="overflow-x: auto;">
+                    <table class="modern-table">
+                        <colgroup>
+                            <col style="width: 5%;">
+                            <col style="width: 25%;">
+                            <col style="width: 11%;">
+                            <col style="width: 12%;">
+                            <col style="width: 11%;">
+                            <col style="width: 14%;">
+                            <col style="width: 10%;">
+                            <col style="width: 12%;">
+                        </colgroup>
                         <thead>
-                            <tr class="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                                <th class="px-4 py-3 text-left text-[10px] font-semibold text-[#64748B] uppercase tracking-wider w-[50px]">NO.</th>
-                                <th class="px-4 py-3 text-left text-[10px] font-semibold text-[#64748B] uppercase tracking-wider min-w-[200px]">NAMA FILE</th>
-                                <th class="px-4 py-3 text-left text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">TANGGAL REPORT</th>
-                                <th class="px-4 py-3 text-right text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">TOTAL BARIS</th>
-                                <th class="px-4 py-3 text-left text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">WAKTU IMPORT</th>
-                                <th class="px-4 py-3 text-center text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">STATUS</th>
-                                <th class="px-4 py-3 text-center text-[10px] font-semibold text-[#64748B] uppercase tracking-wider">AKSI</th>
+                            <tr>
+                                <th style="text-align: center;">#</th>
+                                <th>Nama File</th>
+                                <th>Cabang</th>
+                                <th>Tanggal Report</th>
+                                <th style="text-align: right;">Total Baris</th>
+                                <th>Waktu Import</th>
+                                <th style="text-align: center;">Status</th>
+                                <th style="text-align: center;">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($analyses as $index => $item)
-                                <tr class="border-b border-[#F1F5F9] hover:bg-[#F8FAFC] transition-smooth">
-                                    <td class="px-4 py-3.5 text-[12px] text-[#64748B]">{{ $analyses->firstItem() + $index }}</td>
-                                    <td class="px-4 py-3.5">
-                                        <div class="flex items-center gap-2">
-                                            <div class="w-7 h-7 rounded bg-[#F1F5F9] flex items-center justify-center flex-shrink-0">
-                                                <svg class="w-4 h-4 text-[#16A34A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <tr>
+                                    <td style="text-align: center; font-size: 12px !important; color: #94A3B8 !important;">
+                                        {{ $analyses->firstItem() + $index }}
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div style="width: 34px; height: 34px; border-radius: 8px; background-color: #F0FDF4; color: #16A34A; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                                <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                 </svg>
                                             </div>
                                             <div>
-                                                <div class="text-[13px] font-semibold text-[#0F172A]">{{ $item->file_name }}</div>
-                                                <div class="text-[10px] text-[#94A3B8]">Hash: {{ substr($item->file_hash ?? '', 0, 10) }}...</div>
+                                                <div style="font-size: 13px; font-weight: 700; color: #0F172A; line-height: 1.3;">{{ $item->file_name }}</div>
+                                                <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">Hash: {{ substr($item->file_hash ?? '', 0, 10) }}...</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3.5 text-[12px] text-[#475569]">{{ $item->report_date ?? '-' }}</td>
-                                    <td class="px-4 py-3.5 text-[12px] font-semibold text-[#0F172A] text-right">
-                                        {{ number_format($item->analysis_details_count ?? $item->row_count, 0, ',', '.') }} baris
+                                    <td>
+                                        <span class="badge-loc-dst">{{ $item->branch?->code ?? ($item->warehouse ?? '-') }}</span>
                                     </td>
-                                    <td class="px-4 py-3.5 text-[12px] text-[#64748B]">
+                                    <td style="color: #475569 !important; font-weight: 500;">
+                                        {{ $item->report_date ?? '-' }}
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <span class="badge-qty-pill">
+                                            <span>{{ number_format($item->analysis_details_count ?: $item->row_count, 0, ',', '.') }}</span>
+                                            <span style="font-size: 11px; font-weight: 500; color: #64748B;">baris</span>
+                                        </span>
+                                    </td>
+                                    <td style="color: #64748B !important; font-size: 12.5px !important;">
                                         {{ $item->imported_at ? $item->imported_at->format('d/m/Y H:i') : '-' }} WIB
                                     </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#F0FDF4] text-[#16A34A] border border-[#BBF7D0]">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-[#16A34A]"></span>
+                                    <td style="text-align: center;">
+                                        <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background-color: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #16A34A;"></span>
                                             Tersimpan
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3.5 text-center">
-                                        <a href="{{ route('replenishment.history.show', $item->id) }}" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] transition-smooth">
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                            Lihat Data
-                                        </a>
+                                    <td style="text-align: center;">
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                                            @if($item->file_path)
+                                                <a href="{{ route('replenishment.history.download', $item->id) }}" style="display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #15803D; background-color: #F0FDF4; border: 1px solid #BBF7D0; text-decoration: none;">
+                                                    Unduh
+                                                </a>
+                                            @endif
+                                            <a href="{{ route('replenishment.history.show', $item->id) }}" style="display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #2563EB; background-color: #EFF6FF; border: 1px solid #DBEAFE; text-decoration: none;">
+                                                Lihat Data
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach
@@ -104,7 +203,7 @@
                 </div>
 
                 @if($analyses->hasPages())
-                    <div class="px-5 py-3 border-t border-[#E2E8F0]">
+                    <div style="padding: 10px 16px; border-top: 1px solid #F1F5F9; background-color: #FAFAFB;">
                         {{ $analyses->links() }}
                     </div>
                 @endif

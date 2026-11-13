@@ -11,10 +11,16 @@ class ExampleTest extends TestCase
     /**
      * A basic test example.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_guest_is_redirected_to_login(): void
     {
         $response = $this->get('/');
+        $response->assertRedirect(route('login'));
+    }
 
+    public function test_authenticated_user_can_access_home(): void
+    {
+        $user = \App\Models\User::factory()->create();
+        $response = $this->actingAs($user)->get('/');
         $response->assertStatus(200);
     }
 }

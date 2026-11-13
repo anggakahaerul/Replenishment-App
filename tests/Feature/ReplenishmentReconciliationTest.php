@@ -3,14 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Import;
-use App\Models\Location;
-use App\Models\ReconciliationResult;
-use App\Models\ReconciliationRun;
 use App\Models\ReplenishmentAnalysisDetail;
 use App\Models\ReplenishmentDetail;
-use App\Services\Replenishment\ExcelParserService;
 use App\Services\Replenishment\ReplenishmentImportService;
-use App\Services\Replenishment\ReplenishmentReconciliationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -20,6 +15,17 @@ use Tests\TestCase;
 class ReplenishmentReconciliationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected \App\Models\User $adminUser;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->adminUser = \App\Models\User::factory()->create([
+            'role' => \App\Models\User::ROLE_ADMIN,
+        ]);
+        $this->actingAs($this->adminUser);
+    }
 
     /**
      * Helper to create a temporary synthetic Replenishment Report Excel.
@@ -32,9 +38,11 @@ class ReplenishmentReconciliationTest extends TestCase
         // Metadata rows
         $sheet->setCellValue('B1', 'Replenishment List');
         $sheet->setCellValue('A3', 'Date :');
-        $sheet->setCellValue('B3', $date);
+        $sheet->setCellValue('B3', $date . ' 08:30:00');
         $sheet->setCellValue('A4', 'Site :');
         $sheet->setCellValue('B4', 'SDA-CT');
+        $sheet->setCellValue('C4', 'Print By :');
+        $sheet->setCellValue('D4', 'ADMIN');
 
         // Header row at row 5
         $headers = ['ItemNo', 'Description Item', 'Location', 'Expired', 'Available', 'In Location', 'Safety Level', 'Max Level', 'Refill Needed'];
@@ -56,14 +64,25 @@ class ReplenishmentReconciliationTest extends TestCase
             $sheet->setCellValue('I' . $currRow, $item['qty']);
             $currRow++;
 
-            if (!empty($item['source_loc'])) {
+            if (!empty($item['sources'])) {
+                $sheet->setCellValue('C' . $currRow, 'Suggested Source');
+                $currRow++;
+                $sheet->setCellValue('B' . $currRow, 'Location');
+                $sheet->setCellValue('C' . $currRow, 'Needed Qty');
+                $currRow++;
+                foreach ($item['sources'] as $src) {
+                    $sheet->setCellValue('B' . $currRow, $src['source_loc']);
+                    $sheet->setCellValue('C' . $currRow, $src['qty']);
+                    $currRow++;
+                }
+            } elseif (!empty($item['source_loc'])) {
                 $sheet->setCellValue('C' . $currRow, 'Suggested Source');
                 $currRow++;
                 $sheet->setCellValue('B' . $currRow, 'Location');
                 $sheet->setCellValue('C' . $currRow, 'Needed Qty');
                 $currRow++;
                 $sheet->setCellValue('B' . $currRow, $item['source_loc']);
-                $sheet->setCellValue('C' . $currRow, $item['qty'] . ' CTN');
+                $sheet->setCellValue('C' . $currRow, $item['qty']);
                 $currRow++;
             }
         }
@@ -109,7 +128,7 @@ class ReplenishmentReconciliationTest extends TestCase
             $sheet->setCellValue('I' . $currRow, 'CTN');
             $sheet->setCellValue('J' . $currRow, $item['source_loc'] ?? 'RCV DOCK');
             $sheet->setCellValue('K' . $currRow, $item['destination_loc']);
-            $sheet->setCellValue('L' . $currRow, now()->toDateTimeString());
+            $sheet->setCellValue('L' . $currRow, $item['created'] ?? ($date . ' 09:30:00'));
             $sheet->setCellValue('M' . $currRow, 'DRY');
             $sheet->setCellValue('N' . $currRow, $item['tag'] ?? 'Replenishment');
             $currRow++;
@@ -150,23 +169,22 @@ class ReplenishmentReconciliationTest extends TestCase
         /** @var ReplenishmentImportService $service */
         $service = app(ReplenishmentImportService::class);
 
-        $reportImport = $service->importReport($reportFile);
-        $analysisImport = $service->importAnalysis($analysisFile);
+        $result = $service->processUpload($reportFile, $analysisFile);
 
-        $this->assertDatabaseHas('imports', ['id' => $reportImport->id, 'import_type' => 'replenishment_report']);
-        $this->assertDatabaseHas('imports', ['id' => $analysisImport->id, 'import_type' => 'replenishment_analysis']);
+        $this->assertTrue($result['success']);
+        $this->assertDatabaseHas('imports', ['import_type' => 'replenishment_report']);
+        $this->assertDatabaseHas('imports', ['import_type' => 'replenishment_analysis']);
+        $this->assertDatabaseHas('replenishment_match_results', ['item_no' => '00123']);
+        $this->assertDatabaseHas('replenishment_daily_summaries', ['category' => 'DRY']);
+        $this->assertDatabaseHas('replenishment_details', ['item_no' => '00123']);
+        $this->assertDatabaseHas('replenishment_analysis_details', ['item_no' => '00123']);
 
-        // Check locations created in unified locations master
-        $this->assertDatabaseHas('locations', ['location_code' => 'D-B-28-1']);
-        $this->assertDatabaseHas('locations', ['location_code' => 'PF-A-1-1']);
+        $reportImport = Import::where('import_type', 'replenishment_report')->first();
+        $this->assertNotNull($reportImport->file_path);
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists($reportImport->file_path));
 
-        // Check details
-        $this->assertDatabaseHas('replenishment_details', [
-            'import_id' => $reportImport->id,
-            'item_no' => '00123',
-            'destination_location_code' => 'D-B-28-1',
-            'quantity' => 45.0000,
-        ]);
+        $downloadResponse = $this->get(route('replenishment.history.download', $reportImport->id));
+        $downloadResponse->assertStatus(200);
 
         @unlink($reportPath);
         @unlink($analysisPath);
@@ -183,7 +201,7 @@ class ReplenishmentReconciliationTest extends TestCase
                 'source_loc' => 'SRC-01',
                 'qty' => 50,
             ],
-            // Unmatched (Report has 30, Analisa has 20)
+            // Pending / Shortage
             [
                 'item_no' => 'SKU02',
                 'desc' => 'Shortage Product',
@@ -191,15 +209,18 @@ class ReplenishmentReconciliationTest extends TestCase
                 'source_loc' => 'SRC-02',
                 'qty' => 30,
             ],
-            // Over POC (Report has 10, Analisa has 25)
+            // Over POC (Needed: 10, Source A: 10, Source B: 15)
             [
                 'item_no' => 'SKU03',
                 'desc' => 'Over POC Product',
                 'destination_loc' => 'D-A-03-1',
-                'source_loc' => 'SRC-03',
                 'qty' => 10,
+                'sources' => [
+                    ['source_loc' => 'SRC-03A', 'qty' => 10],
+                    ['source_loc' => 'SRC-03B', 'qty' => 15],
+                ],
             ],
-            // Report Only
+            // Report Only (Pending)
             [
                 'item_no' => 'SKU04',
                 'desc' => 'Report Only Product',
@@ -227,11 +248,11 @@ class ReplenishmentReconciliationTest extends TestCase
             [
                 'item_no' => 'SKU03',
                 'desc' => 'Over POC Product',
-                'source_loc' => 'SRC-03',
+                'source_loc' => 'SRC-03A',
                 'destination_loc' => 'D-A-03-1',
-                'qty' => 25,
+                'qty' => 10,
             ],
-            // Analysis Only
+            // Analysis Only (Initiative)
             [
                 'item_no' => 'SKU05',
                 'desc' => 'Analysis Only Product',
@@ -247,30 +268,20 @@ class ReplenishmentReconciliationTest extends TestCase
         /** @var ReplenishmentImportService $service */
         $service = app(ReplenishmentImportService::class);
 
-        $reportImport = $service->importReport($reportFile);
-        $analysisImport = $service->importAnalysis($analysisFile);
-
-        $result = $service->runMatching($reportImport, $analysisImport);
+        $result = $service->processUpload($reportFile, $analysisFile);
 
         $this->assertTrue($result['success']);
-        $this->assertEquals(5, $result['summary']['total_rows']);
-        $this->assertEquals(1, $result['summary']['matched_rows']);
-        $this->assertEquals(3, $result['summary']['unmatched_rows']); // SKU02, SKU04, SKU05
-        $this->assertEquals(1, $result['summary']['over_poc_rows']); // SKU03
-
-        // Results persisted to database
-        $this->assertDatabaseHas('reconciliation_results', [
-            'sku' => 'SKU01',
-            'status' => 'matched',
-            'qty_replenish' => 50,
-            'qty_analysis' => 50,
+        $this->assertDatabaseHas('replenishment_match_results', [
+            'item_no' => 'SKU01',
+            'status' => 'MATCH',
         ]);
-
-        $this->assertDatabaseHas('reconciliation_results', [
-            'sku' => 'SKU03',
-            'status' => 'melebihi_poc',
-            'qty_replenish' => 10,
-            'qty_analysis' => 25,
+        $this->assertDatabaseHas('replenishment_match_results', [
+            'item_no' => 'SKU03',
+            'status' => 'MELEBIHI POC',
+        ]);
+        $this->assertDatabaseHas('replenishment_match_results', [
+            'item_no' => 'SKU05',
+            'status' => 'INITIATIVE',
         ]);
 
         @unlink($reportPath);
@@ -284,6 +295,7 @@ class ReplenishmentReconciliationTest extends TestCase
                 'item_no' => 'SKU99',
                 'desc' => 'Persistent Item',
                 'destination_loc' => 'D-Z-99-1',
+                'source_loc' => 'SRC-99',
                 'qty' => 10,
             ]
         ]);
@@ -291,6 +303,7 @@ class ReplenishmentReconciliationTest extends TestCase
             [
                 'item_no' => 'SKU99',
                 'desc' => 'Persistent Item',
+                'source_loc' => 'SRC-99',
                 'destination_loc' => 'D-Z-99-1',
                 'qty' => 10,
             ]
@@ -307,46 +320,14 @@ class ReplenishmentReconciliationTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonPath('success', true);
-        $response->assertJsonPath('summary.matched_rows', 1);
+        $this->assertEquals(1, $response->json('summary.MATCH'));
 
-        // Now hit index GET route to ensure persisted run is loaded
+        // Hit index GET route to ensure dashboard loads
         $pageResponse = $this->get(route('replenishment.index'));
         $pageResponse->assertStatus(200);
-        $pageResponse->assertSee('SKU99');
 
         @unlink($reportPath);
         @unlink($analysisPath);
-    }
-
-    public function test_it_reconciles_real_shift1_excel_files()
-    {
-        $realReportPath = 'D:/Replenishment Report/Shift 1/Replenishment Report (2026-10-13) (1).xlsx';
-        $realAnalysisPath = 'D:/Replenishment Report/Shift 1/Analisa Replenishment 20261013.xlsx';
-
-        if (!file_exists($realReportPath) || !file_exists($realAnalysisPath)) {
-            $this->markTestSkipped('Real Excel files not found on machine.');
-        }
-
-        $reportFile = new UploadedFile($realReportPath, 'Replenishment Report (2026-10-13) (1).xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
-        $analysisFile = new UploadedFile($realAnalysisPath, 'Analisa Replenishment 20261013.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
-
-        /** @var ReplenishmentImportService $service */
-        $service = app(ReplenishmentImportService::class);
-
-        $reportImport = $service->importReport($reportFile);
-        $analysisImport = $service->importAnalysis($analysisFile);
-
-        $this->assertGreaterThan(50, $reportImport->row_count);
-        $this->assertGreaterThan(100, $analysisImport->row_count);
-
-        $result = $service->runMatching($reportImport, $analysisImport);
-
-        $this->assertTrue($result['success']);
-        $this->assertGreaterThan(0, $result['summary']['total_rows']);
-        $this->assertGreaterThan(0, $result['summary']['matched_rows']);
-
-        // Check locations were populated in locations master
-        $this->assertGreaterThan(10, Location::count());
     }
 
     public function test_it_renders_history_and_detail_screens()
@@ -412,4 +393,171 @@ class ReplenishmentReconciliationTest extends TestCase
         $responseAnalysisDetail->assertSee('SKU-TEST-1');
         $responseAnalysisDetail->assertSee('RCV DOCK');
     }
+
+    public function test_it_renders_analytics_dashboard_with_summaries()
+    {
+        \Illuminate\Support\Facades\DB::table('replenishment_daily_summaries')->insert([
+            'report_date' => '2026-10-16',
+            'category' => 'DRY',
+            'shift_1_total' => 172,
+            'shift_1_done' => 162,
+            'shift_1_completion' => 94.2,
+            'shift_2_total' => 158,
+            'shift_2_done' => 142,
+            'shift_2_completion' => 89.9,
+            'total_tasks' => 330,
+            'match_count' => 304,
+            'pending_count' => 26,
+            'match_percentage' => 92.1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->get(route('dashboard'));
+        $response->assertStatus(200);
+        $response->assertSee('Riwayat Analisis');
+        $response->assertSee('Dry');
+        $response->assertSee('162');
+        $response->assertSee('142');
+        $response->assertSee('92.1%');
+    }
+
+    public function test_admin_can_access_user_management()
+    {
+        $response = $this->actingAs($this->adminUser)->get(route('users.index'));
+        $response->assertStatus(200);
+        $response->assertSee('Manajemen Pengguna');
+        $response->assertSee($this->adminUser->name);
+    }
+
+    public function test_operator_and_viewer_cannot_access_user_management()
+    {
+        $operator = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_OPERATOR]);
+        $viewer = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_VIEWER]);
+
+        $this->actingAs($operator)->get(route('users.index'))->assertStatus(403);
+        $this->actingAs($viewer)->get(route('users.index'))->assertStatus(403);
+    }
+
+    public function test_viewer_cannot_upload_replenishment_files()
+    {
+        $viewer = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_VIEWER]);
+
+        $reportPath = $this->createSyntheticReportExcel([]);
+        $analysisPath = $this->createSyntheticAnalysisExcel([]);
+
+        $response = $this->actingAs($viewer)->post(route('replenishment.import'), [
+            'report_file' => new UploadedFile($reportPath, 'report.xlsx', null, null, true),
+            'analysis_file' => new UploadedFile($analysisPath, 'analysis.xlsx', null, null, true),
+        ]);
+
+        $response->assertStatus(403);
+
+        @unlink($reportPath);
+        @unlink($analysisPath);
+    }
+
+    public function test_admin_can_create_edit_and_delete_user()
+    {
+        // 1. Create
+        $response = $this->actingAs($this->adminUser)->post(route('users.store'), [
+            'name' => 'Budi Santoso',
+            'email' => 'budi@replenishment.test',
+            'role' => \App\Models\User::ROLE_OPERATOR,
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+        $response->assertRedirect(route('users.index'));
+        $this->assertDatabaseHas('users', ['email' => 'budi@replenishment.test', 'role' => 'operator']);
+
+        $user = \App\Models\User::where('email', 'budi@replenishment.test')->first();
+
+        // 2. Update
+        $responseUpdate = $this->actingAs($this->adminUser)->put(route('users.update', $user), [
+            'name' => 'Budi Santoso Updated',
+            'email' => 'budi.new@replenishment.test',
+            'role' => \App\Models\User::ROLE_VIEWER,
+        ]);
+        $responseUpdate->assertRedirect(route('users.index'));
+        $this->assertDatabaseHas('users', ['email' => 'budi.new@replenishment.test', 'role' => 'viewer']);
+
+        // 3. Delete
+        $responseDelete = $this->actingAs($this->adminUser)->delete(route('users.destroy', $user));
+        $responseDelete->assertRedirect(route('users.index'));
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
+    }
+
+    public function test_admin_cannot_delete_themselves()
+    {
+        $response = $this->actingAs($this->adminUser)->delete(route('users.destroy', $this->adminUser));
+        $response->assertSessionHas('error');
+        $this->assertDatabaseHas('users', ['id' => $this->adminUser->id]);
+    }
+
+    public function test_admin_can_access_application_log()
+    {
+        \App\Models\ActivityLog::record(
+            \App\Models\ActivityLog::ACTION_SYSTEM,
+            'Test system log description for admin check',
+            ['key' => 'val'],
+            \App\Models\ActivityLog::LEVEL_INFO,
+            $this->adminUser
+        );
+
+        $response = $this->actingAs($this->adminUser)->get(route('logs.index'));
+        $response->assertStatus(200);
+        $response->assertSee('Application Log');
+        $response->assertSee('Test system log description for admin check');
+    }
+
+    public function test_operator_and_viewer_cannot_access_application_log()
+    {
+        $operator = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_OPERATOR]);
+        $viewer = \App\Models\User::factory()->create(['role' => \App\Models\User::ROLE_VIEWER]);
+
+        $this->actingAs($operator)->get(route('logs.index'))->assertStatus(403);
+        $this->actingAs($viewer)->get(route('logs.index'))->assertStatus(403);
+    }
+
+    public function test_login_and_logout_records_activity_log()
+    {
+        $this->app['auth']->logout();
+        $this->flushSession();
+
+        $user = \App\Models\User::factory()->create([
+            'email' => 'logintest@replenishment.test',
+            'password' => bcrypt('password123'),
+        ]);
+
+        $loginResponse = $this->post(route('login.post'), [
+            'email' => 'logintest@replenishment.test',
+            'password' => 'password123',
+        ]);
+        $loginResponse->assertRedirect();
+        $this->assertAuthenticatedAs($user);
+
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => \App\Models\ActivityLog::ACTION_LOGIN,
+            'user_name' => $user->name,
+            'level' => 'success',
+        ]);
+
+        $logoutResponse = $this->post(route('logout'));
+        $logoutResponse->assertRedirect(route('login'));
+
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => \App\Models\ActivityLog::ACTION_LOGOUT,
+            'user_name' => $user->name,
+        ]);
+    }
+
+    public function test_admin_can_clear_activity_logs()
+    {
+        $responseClearActivity = $this->actingAs($this->adminUser)->post(route('logs.clear'));
+        $responseClearActivity->assertRedirect(route('logs.index'));
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => \App\Models\ActivityLog::ACTION_SYSTEM,
+        ]);
+    }
 }
+

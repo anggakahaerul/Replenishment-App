@@ -1,58 +1,176 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Replenishment App
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi web berbasis Laravel untuk rekonsiliasi (*matching*) data **Replenishment Report** dan **Analysis Replenishment** gudang per cabang dan shift, lengkap dengan dashboard monitoring, riwayat file impor, manajemen shift cabang, dan audit log.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Fitur Utama
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Upload & Matching Excel (`.xlsx` / `.xls`)**
+  - Parsing file *Replenishment Report* dan *Analysis Replenishment* menggunakan `phpoffice/phpspreadsheet`.
+  - Penentuan shift otomatis berdasarkan jam transaksi, cabang, tipe hari (Senin–Jumat / Sabtu), toleransi *pre-shift*, serta normalisasi shift lintas tengah malam.
+  - Kategorisasi item (**Dry** / **Frozen**) dan jenis transaksi (**Put Away**, **Transfer**, dll.) serta deteksi kelebihan POC (*Melebihi POC*).
+- **Dashboard & Grafik Tren**
+  - Ringkasan KPI per tanggal untuk **Shift 1**, **Shift 2**, dan **All Shift** (Total Task, Match, Pending, Completion %, Put Away, Transfer, Melebihi POC).
+  - Grafik **Tren Matching Pertanggal** dengan filter shift, kategori (`Dry` / `Frozen`), dan rentang tanggal/bulan (`7 Hari`, `14 Hari`, `30 Hari`, `Semua`, atau per bulan).
+  - Tabel detail hasil matching dengan pencarian SKU/produk, filter status, dan filter tambahan.
+- **Riwayat Laporan & Detail Matching**
+  - Halaman **Replenishment Report History** dan **Analysis Replenishment History** lengkap dengan fitur unduh ulang berkas asli.
+  - Halaman **Detail Matching** yang menggabungkan hasil Shift 1 dan Shift 2 per tanggal & cabang.
+  - Hapus riwayat matching secara fleksibel (per shift atau seluruh tanggal).
+- **Manajemen Akses & Role**
+  - `admin`: Akses penuh ke seluruh fitur, manajemen user, master data cabang, master data shift, dan application log.
+  - `operator`: Upload & matching berkas, melihat dashboard & riwayat, serta menghapus data matching pada cabang yang diizinkan.
+  - `viewer`: Akses *read-only* untuk memantau dashboard, riwayat laporan, dan hasil matching.
+  - Pembatasan akses per cabang (`branch_id` tertentu atau seluruh cabang).
+- **Master Data & Application Log**
+  - Pengelolaan data cabang (`branches`) dan aturan jam shift per cabang (`branch_shifts`), termasuk hari operasional dan durasi toleransi.
+  - Pencatatan aktivitas pengguna (login, upload, hapus data, perubahan master data) pada halaman **Application Log**.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Tech Stack
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- **Backend**: PHP `^8.3`, Laravel `^13.17`
+- **Spreadsheet Parser**: `phpoffice/phpspreadsheet` `^5.10`
+- **Frontend**: Blade, Tailwind CSS v4 (`@tailwindcss/vite`), Alpine.js, Chart.js, Vite `^8.0`
+- **Database**: SQLite (default lokal) atau MySQL / MariaDB
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Instalasi Lokal
 
-## Agentic Development
+### 1. Prasyarat
+Pastikan sudah terpasang di mesin lokal:
+- PHP >= 8.3 (dengan ekstensi umum Laravel & `zip`/`xml`/`gd` untuk PhpSpreadsheet)
+- Composer
+- Node.js & npm
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 2. Setup Project
+
+Clone repository lalu masuk ke direktori project:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <url-repository>
+cd Replenishment-App
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Salin file environment dan install dependensi:
 
-## Contributing
+```bash
+cp .env.example .env
+composer install
+npm install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Generate app key, jalankan migrasi + seeder, dan build aset frontend:
 
-## Code of Conduct
+```bash
+php artisan key:generate
+php artisan migrate --seed
+npm run build
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+> **Catatan:** Secara default `.env.example` menggunakan `DB_CONNECTION=sqlite`. Jika menggunakan SQLite, pastikan file `database/database.sqlite` sudah ada (bisa dibuat dengan `touch database/database.sqlite` atau `New-Item database/database.sqlite` di PowerShell). Jika memakai MySQL/MariaDB, sesuaikan konfigurasi `DB_*` di `.env` sebelum menjalankan `php artisan migrate --seed`.
 
-## Security Vulnerabilities
+Atau Anda juga bisa memakai script bawaan Composer:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+composer run setup
+```
 
-## License
+### 3. Menjalankan Server Development
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan serve
+```
+
+Untuk pengembangan frontend dengan hot-reload Vite, jalankan di terminal terpisah:
+
+```bash
+npm run dev
+```
+
+Aplikasi dapat diakses di `http://localhost:8000`.
+
+---
+
+## Akun Default (Seeder)
+
+Menjalankan `php artisan migrate --seed` (atau `php artisan db:seed`) akan membuat akun bawaan berikut dengan password **`password`**:
+
+| Role | Email | Hak Akses |
+| :--- | :--- | :--- |
+| **Admin** | `admin@replenishment.test` | Akses penuh, master cabang & shift, manajemen user, log aktivitas |
+| **Operator** | `operator@replenishment.test` | Upload & proses matching, lihat dashboard/riwayat, hapus data matching |
+| **Viewer** | `viewer@replenishment.test` | Read-only (lihat dashboard, riwayat laporan, dan hasil matching) |
+
+> Segera ubah password atau buat akun baru melalui menu **Manajemen User** jika aplikasi dipakai di lingkungan produksi.
+
+---
+
+## Struktur Direktori Penting
+
+```text
+app/
+├── Http/Controllers/
+│   ├── AppLogController.php           # Halaman & pembersihan log aktivitas (Admin)
+│   ├── AuthController.php             # Login & logout
+│   ├── BranchShiftController.php      # CRUD Master Cabang & Master Shift (Admin)
+│   ├── DashboardController.php        # Dashboard KPI, grafik tren, & hapus batch/hasil matching
+│   ├── ReplenishmentController.php    # Halaman utama matching, upload, history, detail, & download
+│   └── UserController.php             # Manajemen user & role (Admin)
+├── Models/
+│   ├── ActivityLog.php
+│   ├── Branch.php
+│   ├── BranchShift.php
+│   ├── Import.php
+│   ├── ReplenishmentAnalysisDetail.php
+│   ├── ReplenishmentDailySummary.php
+│   ├── ReplenishmentDetail.php
+│   └── ReplenishmentMatchResult.php
+└── Services/Replenishment/
+    ├── CategoryService.php            # Pemetaan kategori item (Dry / Frozen)
+    ├── ExcelParserService.php         # Pembacaan Excel & konversi serial tanggal wall-clock
+    ├── MatchingEngineService.php      # Logika pencocokan Report vs Analysis
+    ├── ReplenishmentImportService.php # Orkestrasi proses upload & penyimpanan hasil
+    ├── ReplenishmentReconciliationService.php
+    └── ShiftService.php               # Penentuan & normalisasi shift per cabang/hari
+```
+
+---
+
+## Ringkasan Rute Utama (`routes/web.php`)
+
+| Method | Path | Deskripsi | Akses |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/login` | Halaman login | Guest |
+| `GET` | `/` | Halaman utama Upload & Matching | Authenticated |
+| `POST` | `/replenishment/import` | Proses upload & matching file Excel | Admin, Operator |
+| `GET` | `/dashboard` | Dashboard KPI & Tren Matching | Authenticated |
+| `DELETE` | `/dashboard/match-batch` | Hapus hasil matching per tanggal/shift | Admin, Operator |
+| `GET` | `/replenishment/report-history` | Riwayat file Replenishment Report | Authenticated |
+| `GET` | `/replenishment/analysis-history` | Riwayat file Analysis Replenishment | Authenticated |
+| `GET` | `/replenishment/match-detail` | Detail gabungan Shift 1 & Shift 2 per tanggal & cabang | Authenticated |
+| `GET` | `/replenishment/history/{import}/download` | Unduh ulang berkas Excel hasil upload | Authenticated |
+| `GET` | `/users` | Manajemen pengguna | Admin |
+| `GET` | `/master/branches` | Master data cabang | Admin |
+| `GET` | `/master/shifts` | Master data jadwal shift cabang | Admin |
+| `GET` | `/logs` | Application Log | Admin |
+
+---
+
+## Perintah Berguna
+
+- **Jalankan unit/feature test**:
+  ```bash
+  composer test
+  ```
+- **Bersihkan & cache ulang view Blade** (setelah ubah file `.blade.php`):
+  ```bash
+  php artisan view:clear && php artisan view:cache
+  ```
+- **Format kode PHP (Laravel Pint)**:
+  ```bash
+  ./vendor/bin/pint
+  ```

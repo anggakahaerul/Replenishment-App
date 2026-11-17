@@ -1,0 +1,63 @@
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Serve storage files (logos, uploads, etc)
+    RewriteRule ^storage/(.*)$ public/storage/$1 [L]
+
+    # Serve static files from public folder (css, js, images, etc)
+    # Exclude MobileApp1, MobileApp2, and tutorial as they are not in the public folder
+    RewriteCond %{REQUEST_URI} !/(MobileApp1|MobileApp2|tutorial)/ [NC]
+    RewriteCond %{REQUEST_URI} !/public/ [NC]
+    RewriteCond %{REQUEST_URI} \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|map)$ [NC]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Serve assets folder from public
+    RewriteCond %{REQUEST_URI} !/public/ [NC]
+    RewriteRule ^assets/(.*)$ public/assets/$1 [L]
+
+    # --- SPA Rules ---
+    # MobileApp1
+    RewriteRule ^MobileApp1$ MobileApp1/ [R=301,L]
+    RewriteCond %{REQUEST_URI} /MobileApp1/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^MobileApp1/(.*)$ MobileApp1/index.html [L]
+
+    # MobileApp2
+    RewriteRule ^MobileApp2$ MobileApp2/ [R=301,L]
+    RewriteCond %{REQUEST_URI} /MobileApp2/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^MobileApp2/(.*)$ MobileApp2/index.html [L]
+
+    # Tutorial
+    RewriteRule ^tutorial$ tutorial/ [R=301,L]
+    RewriteCond %{REQUEST_URI} /tutorial/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^tutorial/(.*)$ public/tutorial/index.html [L]
+    # -----------------
+
+    # Serve existing files in public folder
+    RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_URI} !-f
+    RewriteCond %{DOCUMENT_ROOT}/%{REQUEST_URI} !-d
+    RewriteCond %{DOCUMENT_ROOT}/public/%{REQUEST_URI} -f
+    RewriteRule ^(.*)$ public/$1 [L]
+
+    # Route all other requests to root index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [L,QSA]
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes

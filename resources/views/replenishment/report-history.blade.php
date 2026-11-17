@@ -186,7 +186,7 @@
                                     </td>
                                     <td style="text-align: center;">
                                         <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
-                                            @if($item->file_path)
+                                            @if($item->has_file)
                                                 <a href="{{ route('replenishment.history.download', $item->id) }}" style="display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #15803D; background-color: #F0FDF4; border: 1px solid #BBF7D0; text-decoration: none;">
                                                     Unduh
                                                 </a>

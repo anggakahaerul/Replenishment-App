@@ -262,37 +262,33 @@ class ReplenishmentImportService
             // Recalculate daily summary
             $this->recalculateDailySummary($resolvedDate, $branchId);
 
-            // Store files to local storage directory with standardized naming
-            $timestamp = now('Asia/Jakarta')->format('Ymd_His');
+            // Read Excel binaries to persist directly in database (no local directory storage)
             $reportExt = strtolower($reportFile->getClientOriginalExtension() ?: 'xlsx');
             $analysisExt = strtolower($analysisFile->getClientOriginalExtension() ?: 'xlsx');
 
             $standardizedReportName = "Replenish Report - {$resolvedDate} - {$reportShift}.{$reportExt}";
             $standardizedAnalysisName = "Analisa Report - {$resolvedDate} - {$reportShift}.{$analysisExt}";
 
-            $shiftSlug = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $reportShift);
-            $reportStoredFileName = "{$timestamp}_Replenish_Report_{$resolvedDate}_{$shiftSlug}.{$reportExt}";
-            $analysisStoredFileName = "{$timestamp}_Analisa_Report_{$resolvedDate}_{$shiftSlug}.{$analysisExt}";
+            $reportBinary = file_get_contents($reportFile->getRealPath());
+            $analysisBinary = file_get_contents($analysisFile->getRealPath());
 
-            $reportFilePath = $reportFile->storeAs('imports/reports', $reportStoredFileName, 'local');
-            $analysisFilePath = $analysisFile->storeAs('imports/analyses', $analysisStoredFileName, 'local');
+            if ($reportBinary === false || $analysisBinary === false) {
+                throw new \RuntimeException('Gagal membaca isi berkas Excel yang diunggah.');
+            }
 
-            $reportHash = ($reportFilePath && Storage::disk('local')->exists($reportFilePath))
-                ? md5_file(Storage::disk('local')->path($reportFilePath))
-                : md5_file($reportFile->getRealPath());
+            $reportHash = md5($reportBinary);
+            $analysisHash = md5($analysisBinary);
 
-            $analysisHash = ($analysisFilePath && Storage::disk('local')->exists($analysisFilePath))
-                ? md5_file(Storage::disk('local')->path($analysisFilePath))
-                : md5_file($analysisFile->getRealPath());
+            $defaultMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-            // Persist report import metadata
+            // Persist report import metadata & binary file
             $reportRowCount = count($reportItems) > 0 ? count($reportItems) : count($reportTasks);
             $reportImport = Import::create([
                 'branch_id'   => $branchId,
                 'import_type' => 'replenishment_report',
                 'batch_id'    => $batchId,
                 'file_name'   => $standardizedReportName,
-                'file_path'   => $reportFilePath,
+                'file_path'   => null,
                 'file_hash'   => $reportHash,
                 'report_date' => $resolvedDate,
                 'report_shift'=> $reportShift,
@@ -304,13 +300,19 @@ class ReplenishmentImportService
                 'imported_at' => now(),
             ]);
 
-            // Persist analysis import metadata
+            $reportImport->storedFile()->create([
+                'mime_type'    => $reportFile->getMimeType() ?: $defaultMime,
+                'file_size'    => strlen($reportBinary),
+                'file_content' => $reportBinary,
+            ]);
+
+            // Persist analysis import metadata & binary file
             $analysisImport = Import::create([
                 'branch_id'   => $branchId,
                 'import_type' => 'replenishment_analysis',
                 'batch_id'    => $batchId,
                 'file_name'   => $standardizedAnalysisName,
-                'file_path'   => $analysisFilePath,
+                'file_path'   => null,
                 'file_hash'   => $analysisHash,
                 'report_date' => $resolvedDate,
                 'report_shift'=> $reportShift,
@@ -319,6 +321,12 @@ class ReplenishmentImportService
                 'status'      => 'completed',
                 'row_count'   => count($analysisRows),
                 'imported_at' => now(),
+            ]);
+
+            $analysisImport->storedFile()->create([
+                'mime_type'    => $analysisFile->getMimeType() ?: $defaultMime,
+                'file_size'    => strlen($analysisBinary),
+                'file_content' => $analysisBinary,
             ]);
 
             // Persist detailed rows for report history

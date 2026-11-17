@@ -48,6 +48,7 @@ class ReplenishmentController extends Controller
         $branchMap = Branch::pluck('code', 'id')->all();
 
         $allImports = Import::query()
+            ->withExists('storedFile')
             ->when($scopedBranchId !== null, fn($q) => $q->where('branch_id', $scopedBranchId))
             ->orderByDesc('id')
             ->get();
@@ -134,12 +135,12 @@ class ReplenishmentController extends Controller
                 'report_file_name'       => $repImp?->file_name ?? ("Replenish Report - {$dateStr} - {$batch->report_shift}.xlsx"),
                 'report_row_count'       => (int) ($repImp?->row_count ?? 0),
                 'report_url'             => $repImp ? route('replenishment.history.show', $repImp->id) : route('replenishment.report-history'),
-                'report_download_url'    => ($repImp && $repImp->file_path) ? route('replenishment.history.download', $repImp->id) : null,
+                'report_download_url'    => ($repImp && $repImp->has_file) ? route('replenishment.history.download', $repImp->id) : null,
                 'analysis_import_id'     => $anaImp?->id,
                 'analysis_file_name'     => $anaImp?->file_name ?? ("Analisa Report - {$dateStr} - {$batch->report_shift}.xlsx"),
                 'analysis_row_count'     => (int) ($anaImp?->row_count ?? 0),
                 'analysis_url'           => $anaImp ? route('replenishment.history.show', $anaImp->id) : route('replenishment.analysis-history'),
-                'analysis_download_url'  => ($anaImp && $anaImp->file_path) ? route('replenishment.history.download', $anaImp->id) : null,
+                'analysis_download_url'  => ($anaImp && $anaImp->has_file) ? route('replenishment.history.download', $anaImp->id) : null,
             ];
         });
 
@@ -267,6 +268,7 @@ class ReplenishmentController extends Controller
         $selectedBranchId = $request->get('branch_id', '');
 
         $query = Import::with('branch')
+            ->withExists('storedFile')
             ->where('import_type', 'replenishment_report')
             ->withCount('replenishmentDetails');
 
@@ -295,6 +297,7 @@ class ReplenishmentController extends Controller
         $selectedBranchId = $request->get('branch_id', '');
 
         $query = Import::with('branch')
+            ->withExists('storedFile')
             ->where('import_type', 'replenishment_analysis')
             ->withCount('analysisDetails');
 
@@ -335,7 +338,7 @@ class ReplenishmentController extends Controller
     }
 
     /**
-     * Download the original uploaded Excel file from local storage.
+     * Download the original uploaded Excel file from database (with legacy local disk fallback).
      */
     public function download(Import $import): \Symfony\Component\HttpFoundation\StreamedResponse
     {
@@ -344,21 +347,45 @@ class ReplenishmentController extends Controller
             abort(403, 'Anda tidak memiliki akses untuk mengunduh file cabang ini.');
         }
 
-        if (!$import->file_path || !\Illuminate\Support\Facades\Storage::disk('local')->exists($import->file_path)) {
-            abort(404, 'File Excel tidak ditemukan di direktori lokal.');
+        $storedFile = $import->storedFile;
+
+        if ($storedFile !== null) {
+            $binary = is_resource($storedFile->file_content)
+                ? stream_get_contents($storedFile->file_content)
+                : $storedFile->file_content;
+
+            \App\Models\ActivityLog::record(
+                \App\Models\ActivityLog::ACTION_DOWNLOAD,
+                "Unduh {$import->file_name}",
+                ['import_id' => $import->id, 'file_name' => $import->file_name, 'import_type' => $import->import_type],
+                \App\Models\ActivityLog::LEVEL_INFO
+            );
+
+            $mimeType = $storedFile->mime_type ?: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+            return response()->streamDownload(function () use ($binary) {
+                echo $binary;
+            }, $import->file_name, [
+                'Content-Type'   => $mimeType,
+                'Content-Length' => (string) strlen((string) $binary),
+            ]);
         }
 
-        \App\Models\ActivityLog::record(
-            \App\Models\ActivityLog::ACTION_DOWNLOAD,
-            "Unduh {$import->file_name}",
-            ['import_id' => $import->id, 'file_name' => $import->file_name, 'import_type' => $import->import_type],
-            \App\Models\ActivityLog::LEVEL_INFO
-        );
+        if ($import->file_path && \Illuminate\Support\Facades\Storage::disk('local')->exists($import->file_path)) {
+            \App\Models\ActivityLog::record(
+                \App\Models\ActivityLog::ACTION_DOWNLOAD,
+                "Unduh {$import->file_name}",
+                ['import_id' => $import->id, 'file_name' => $import->file_name, 'import_type' => $import->import_type],
+                \App\Models\ActivityLog::LEVEL_INFO
+            );
 
-        return \Illuminate\Support\Facades\Storage::disk('local')->download(
-            $import->file_path,
-            $import->file_name
-        );
+            return \Illuminate\Support\Facades\Storage::disk('local')->download(
+                $import->file_path,
+                $import->file_name
+            );
+        }
+
+        abort(404, 'File Excel tidak ditemukan di database.');
     }
 
     /**
@@ -391,14 +418,18 @@ class ReplenishmentController extends Controller
             ->orderBy('id');
 
         $rows = $rowsQuery->get()->map(function ($row) {
+            $hasReportSource = in_array($row->record_type, ['REPORT_TASK', 'REPORT'], true)
+                || $row->status === 'MATCH';
+            $hasAnalysisSource = $row->record_type === 'ANALYSIS';
+
             return [
                 'id'                     => $row->id,
                 'report_shift'           => $row->report_shift ?? '-',
                 'category'               => $row->category ?? '-',
                 'item_no'                => $row->item_no ?? '-',
                 'item_name'              => $row->item_description ?? '-',
-                'from_location_report'   => $row->record_type === 'REPORT' ? ($row->from_location ?? '-') : '-',
-                'from_location_analysis' => $row->record_type === 'ANALYSIS' ? ($row->from_location ?? '-') : '-',
+                'from_location_report'   => $hasReportSource ? ($row->from_location ?: '-') : '-',
+                'from_location_analysis' => $hasAnalysisSource ? ($row->from_location ?: '-') : '-',
                 'to_location'            => $row->to_location ?? '-',
                 'qty_report'             => $row->qty_report,
                 'qty_analysis'           => $row->qty_analysis,

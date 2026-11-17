@@ -48,7 +48,7 @@
                 <h1 style="font-size: 18px; font-weight: 800; color: #0F172A; margin: 0;">{{ $import->file_name }}</h1>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-                @if($import->file_path)
+                @if($import->has_file)
                     <a href="{{ route('replenishment.history.download', $import->id) }}" style="display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; font-size: 12px; font-weight: 600; color: #15803D; background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; text-decoration: none;">
                         <svg style="width: 14px; height: 14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

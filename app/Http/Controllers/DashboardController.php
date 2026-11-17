@@ -343,6 +343,7 @@ class DashboardController extends Controller
         $branchMap = Branch::pluck('code', 'id')->all();
 
         $allImports = Import::query()
+            ->withExists('storedFile')
             ->when($activeBranchFilter !== null, fn($q) => $q->where('branch_id', $activeBranchFilter))
             ->orderByDesc('id')
             ->get();
@@ -442,12 +443,12 @@ class DashboardController extends Controller
                 'report_file_name'       => $repImp?->file_name ?? ("Replenish Report - {$dateStr} - {$batch->report_shift}.xlsx"),
                 'report_row_count'       => (int) ($repImp?->row_count ?? 0),
                 'report_url'             => $repImp ? route('replenishment.history.show', $repImp->id) : route('replenishment.report-history'),
-                'report_download_url'    => ($repImp && $repImp->file_path) ? route('replenishment.history.download', $repImp->id) : null,
+                'report_download_url'    => ($repImp && $repImp->has_file) ? route('replenishment.history.download', $repImp->id) : null,
                 'analysis_import_id'     => $anaImp?->id,
                 'analysis_file_name'     => $anaImp?->file_name ?? ("Analisa Report - {$dateStr} - {$batch->report_shift}.xlsx"),
                 'analysis_row_count'     => (int) ($anaImp?->row_count ?? 0),
                 'analysis_url'           => $anaImp ? route('replenishment.history.show', $anaImp->id) : route('replenishment.analysis-history'),
-                'analysis_download_url'  => ($anaImp && $anaImp->file_path) ? route('replenishment.history.download', $anaImp->id) : null,
+                'analysis_download_url'  => ($anaImp && $anaImp->has_file) ? route('replenishment.history.download', $anaImp->id) : null,
             ];
         })->values();
 

@@ -230,11 +230,15 @@ class ReplenishmentImportService
             $resRow['branch_id'] = $branchId;
         }
         unset($resRow);
-
+//test
         // ── Persist ───────────────────────────────────────────────────────────
         return DB::transaction(function () use (
             $reportFile,
             $analysisFile,
+            $reportBinary,
+            $analysisBinary,
+            $reportHashIncoming,
+            $analysisHashIncoming,
             $branchId,
             $reportMeta,
             $analysisMeta,

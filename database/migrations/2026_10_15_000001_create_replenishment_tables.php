@@ -80,7 +80,7 @@ return new class extends Migration
             $table->unsignedInteger('row_number');
             $table->timestamps();
 
-            $table->index(['item_no', 'destination_location_code']);
+            $table->index(['item_no', 'destination_location_code'], 'rad_item_dest_idx');
         });
 
         // 5. Reconciliation Runs

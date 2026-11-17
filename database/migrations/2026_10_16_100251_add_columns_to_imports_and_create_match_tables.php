@@ -60,8 +60,8 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->index(['report_date', 'report_shift', 'category']);
-            $table->index(['report_date', 'category', 'counts_as_task']);
+            $table->index(['report_date', 'report_shift', 'category'], 'rmr_date_shift_cat_idx');
+            $table->index(['report_date', 'category', 'counts_as_task'], 'rmr_date_cat_task_idx');
         });
 
         // 4. Daily summary snapshot — KPI dashboard per (report_date, category)

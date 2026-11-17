@@ -40,9 +40,22 @@ class ReplenishmentImportService
     {
         $startTime = microtime(true);
 
+        if (!$reportFile->isValid()) {
+            throw new \RuntimeException('Upload file Replenishment Report gagal: ' . $reportFile->getErrorMessage());
+        }
+        if (!$analysisFile->isValid()) {
+            throw new \RuntimeException('Upload file Analysis Replenishment gagal: ' . $analysisFile->getErrorMessage());
+        }
+
+        $reportPath   = $reportFile->getRealPath() ?: $reportFile->getPathname();
+        $analysisPath = $analysisFile->getRealPath() ?: $analysisFile->getPathname();
+
         // ── Parse in-memory ──────────────────────────────────────────────────
-        $reportParsed   = $this->parserService->parseReportInMemory($reportFile->getRealPath());
-        $analysisParsed = $this->parserService->parseAnalysisInMemory($analysisFile->getRealPath());
+        $reportParsed   = $this->parserService->parseReportInMemory($reportPath);
+        $analysisParsed = $this->parserService->parseAnalysisInMemory($analysisPath);
+
+        $reportBinary   = $reportFile->getContent();
+        $analysisBinary = $analysisFile->getContent();
 
         // ── Validate & detect metadata ────────────────────────────────────────
         $reportMeta   = $reportParsed['metadata'];
@@ -132,8 +145,8 @@ class ReplenishmentImportService
             : 'SHIFT 1';
 
         // 6. Validate: Prevent duplicate upload for the same (Branch, Date, Shift) or exact same file hash
-        $reportHashIncoming   = md5_file($reportFile->getRealPath());
-        $analysisHashIncoming = md5_file($analysisFile->getRealPath());
+        $reportHashIncoming   = md5($reportBinary);
+        $analysisHashIncoming = md5($analysisBinary);
 
         $existingReportForShift = Import::where('import_type', 'replenishment_report')
             ->where('report_date', $resolvedDate)
@@ -262,22 +275,15 @@ class ReplenishmentImportService
             // Recalculate daily summary
             $this->recalculateDailySummary($resolvedDate, $branchId);
 
-            // Read Excel binaries to persist directly in database (no local directory storage)
+            // Store Excel binaries directly in database (no local directory storage)
             $reportExt = strtolower($reportFile->getClientOriginalExtension() ?: 'xlsx');
             $analysisExt = strtolower($analysisFile->getClientOriginalExtension() ?: 'xlsx');
 
             $standardizedReportName = "Replenish Report - {$resolvedDate} - {$reportShift}.{$reportExt}";
             $standardizedAnalysisName = "Analisa Report - {$resolvedDate} - {$reportShift}.{$analysisExt}";
 
-            $reportBinary = file_get_contents($reportFile->getRealPath());
-            $analysisBinary = file_get_contents($analysisFile->getRealPath());
-
-            if ($reportBinary === false || $analysisBinary === false) {
-                throw new \RuntimeException('Gagal membaca isi berkas Excel yang diunggah.');
-            }
-
-            $reportHash = md5($reportBinary);
-            $analysisHash = md5($analysisBinary);
+            $reportHash = $reportHashIncoming;
+            $analysisHash = $analysisHashIncoming;
 
             $defaultMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 

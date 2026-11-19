@@ -1112,9 +1112,10 @@
         <div
             x-show="showCategoryConfirmModal"
             x-cloak
-            style="position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background-color: rgba(15, 23, 42, 0.5); backdrop-filter: blur(2px);"
+            style="position: fixed; inset: 0; z-index: 60; overflow-y: auto; background-color: rgba(15, 23, 42, 0.5); backdrop-filter: blur(2px);"
             @keydown.escape.window="showCategoryConfirmModal = false"
         >
+            <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px;">
             <div
                 @click.outside="showCategoryConfirmModal = false"
                 style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.1); width: 100%; max-width: 460px; padding: 22px 24px;"
@@ -1191,6 +1192,7 @@
                         Konfirmasi &amp; Proses
                     </button>
                 </div>
+            </div>
             </div>
         </div>
 

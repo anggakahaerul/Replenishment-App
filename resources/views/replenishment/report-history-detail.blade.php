@@ -163,8 +163,9 @@
         {{-- ===== MODAL DETAIL LOKASI SUMBER ===== --}}
         <div x-show="modalOpen"
              x-cloak
-             style="position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background-color: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px);"
+             style="position: fixed; inset: 0; z-index: 50; overflow-y: auto; background-color: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px);"
              @keydown.escape.window="modalOpen = false">
+            <div style="min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px;">
             <div @click.away="modalOpen = false"
                  style="background: #ffffff; border-radius: 12px; border: 1px solid #E2E8F0; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12); width: 100%; max-width: 360px; overflow: hidden;">
                 <div style="padding: 12px 16px; border-bottom: 1px solid #E2E8F0; background-color: #F8FAFC; display: flex; align-items: center; justify-content: space-between;">
@@ -185,6 +186,7 @@
                         </template>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     </div>

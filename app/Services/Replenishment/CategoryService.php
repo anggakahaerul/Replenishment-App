@@ -26,7 +26,18 @@ class CategoryService
         ?string $fromLocation,
         ?string $storage
     ): string {
-        // Priority 1: to_location prefix
+        // Priority 1: Explicit Storage column value (most reliable when present)
+        if ($storage !== null && $storage !== '') {
+            $upper = strtoupper(trim($storage));
+            if (str_contains($upper, 'FROZEN')) {
+                return 'FROZEN';
+            }
+            if (str_contains($upper, 'DRY')) {
+                return 'DRY';
+            }
+        }
+
+        // Priority 2: to_location prefix
         if ($toLocation !== null && $toLocation !== '') {
             $result = $this->detectFromLocationPrefix($toLocation);
             if ($result !== null) {
@@ -34,22 +45,11 @@ class CategoryService
             }
         }
 
-        // Priority 2: from_location prefix
+        // Priority 3: from_location prefix
         if ($fromLocation !== null && $fromLocation !== '') {
             $result = $this->detectFromLocationPrefix($fromLocation);
             if ($result !== null) {
                 return $result;
-            }
-        }
-
-        // Priority 3: Storage column value
-        if ($storage !== null && $storage !== '') {
-            $upper = strtoupper(trim($storage));
-            if ($upper === 'DRY') {
-                return 'DRY';
-            }
-            if ($upper === 'FROZEN') {
-                return 'FROZEN';
             }
         }
 

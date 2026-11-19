@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        \App\Models\Role::seedDefaults();
+
         User::updateOrCreate(
             ['email' => 'admin@replenishment.test'],
             [
@@ -34,11 +36,20 @@ class DatabaseSeeder extends Seeder
         );
 
         User::updateOrCreate(
-            ['email' => 'viewer@replenishment.test'],
+            ['email' => 'supervisor@replenishment.test'],
             [
-                'name' => 'Viewer Supervisor',
+                'name' => 'Supervisor Gudang',
                 'password' => bcrypt('password'),
-                'role' => User::ROLE_VIEWER,
+                'role' => User::ROLE_SUPERVISOR,
+            ]
+        );
+
+        User::updateOrCreate(
+            ['email' => 'manager@replenishment.test'],
+            [
+                'name' => 'Manager Operasional',
+                'password' => bcrypt('password'),
+                'role' => User::ROLE_MANAGER,
             ]
         );
 

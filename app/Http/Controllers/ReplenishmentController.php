@@ -50,6 +50,7 @@ class ReplenishmentController extends Controller
         $allImports = Import::query()
             ->withExists('storedFile')
             ->when($scopedBranchId !== null, fn($q) => $q->where('branch_id', $scopedBranchId))
+            ->orderByDesc('is_active')
             ->orderByDesc('id')
             ->get();
 
@@ -185,14 +186,18 @@ class ReplenishmentController extends Controller
     }
 
     /**
-     * Process both uploaded files: validate, run matching, persist results.
+     * Process uploaded file(s) (paired, report-only, or analysis-only): validate, run matching, persist results.
      */
     public function store(ImportReplenishmentRequest $request): JsonResponse
     {
         try {
             $user = auth()->user();
-            $reportFileName = $request->file('report_file')->getClientOriginalName();
-            $analysisFileName = $request->file('analysis_file')->getClientOriginalName();
+            $reportFile = $request->file('report_file');
+            $analysisFile = $request->file('analysis_file');
+            $reportFileName = $reportFile?->getClientOriginalName();
+            $analysisFileName = $analysisFile?->getClientOriginalName();
+            $targetShift = $request->input('target_shift') ?: null;
+            $categoryMode = strtoupper((string) ($request->input('category_mode') ?: 'AUTO'));
             $branchId = $request->input('branch_id') ? (int)$request->input('branch_id') : null;
 
             // Enforce user branch restriction if user is assigned to a specific branch
@@ -201,9 +206,11 @@ class ReplenishmentController extends Controller
             }
 
             $result = $this->importService->processUpload(
-                $request->file('report_file'),
-                $request->file('analysis_file'),
-                $branchId
+                $reportFile,
+                $analysisFile,
+                $branchId,
+                $targetShift,
+                $categoryMode
             );
 
             $loggedReportName = $result['report_file_name'] ?? $reportFileName;
@@ -322,6 +329,10 @@ class ReplenishmentController extends Controller
     public function showHistory(Import $import): View
     {
         $user = auth()->user();
+        $permMenu = $import->import_type === 'replenishment_report' ? 'report_history' : 'analysis_history';
+        if ($user && !$user->hasPermission($permMenu, 'download')) {
+            abort(403, 'Anda tidak memiliki izin untuk mengunduh file ini.');
+        }
         if ($user && !$user->canAccessBranch($import->branch_id)) {
             abort(403, 'Anda tidak memiliki akses untuk melihat data cabang ini.');
         }
@@ -343,6 +354,10 @@ class ReplenishmentController extends Controller
     public function download(Import $import): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $user = auth()->user();
+        $permMenu = $import->import_type === 'replenishment_report' ? 'report_history' : 'analysis_history';
+        if ($user && !$user->hasPermission($permMenu, 'download')) {
+            abort(403, 'Anda tidak memiliki izin untuk mengunduh file ini.');
+        }
         if ($user && !$user->canAccessBranch($import->branch_id)) {
             abort(403, 'Anda tidak memiliki akses untuk mengunduh file cabang ini.');
         }
@@ -410,6 +425,16 @@ class ReplenishmentController extends Controller
 
         $branch = $branchId ? Branch::find($branchId) : null;
 
+        $reportImportsByShift = Import::query()
+            ->where('import_type', 'replenishment_report')
+            ->where('report_date', $reportDate)
+            ->when($branchId !== null, fn($q) => $q->where('branch_id', $branchId), fn($q) => $q->whereNull('branch_id'))
+            ->orderByDesc('is_active')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('report_shift')
+            ->keyBy('report_shift');
+
         $rowsQuery = DB::table('replenishment_match_results')
             ->where('report_date', $reportDate)
             ->when($branchId !== null, fn($q) => $q->where('branch_id', $branchId), fn($q) => $q->whereNull('branch_id'))
@@ -417,10 +442,26 @@ class ReplenishmentController extends Controller
             ->orderBy('category')
             ->orderBy('id');
 
-        $rows = $rowsQuery->get()->map(function ($row) {
+        $rows = $rowsQuery->get()->map(function ($row) use ($reportImportsByShift) {
             $hasReportSource = in_array($row->record_type, ['REPORT_TASK', 'REPORT'], true)
                 || $row->status === 'MATCH';
             $hasAnalysisSource = $row->record_type === 'ANALYSIS';
+            $reportImport = $reportImportsByShift->get($row->report_shift);
+
+            $sourceCreatedAtFormatted = '-';
+            if (!empty($row->source_created_at)) {
+                try {
+                    $sourceCreatedAtFormatted = Carbon::parse($row->source_created_at)->format('d/m/Y H:i');
+                } catch (\Throwable) {
+                    $sourceCreatedAtFormatted = (string) $row->source_created_at;
+                }
+            } elseif ($reportImport?->printed_at) {
+                $sourceCreatedAtFormatted = $reportImport->printed_at->copy()->timezone('Asia/Jakarta')->format('d/m/Y H:i');
+            }
+
+            $sourceCreatedBy = !empty($row->source_created_by)
+                ? $row->source_created_by
+                : ($reportImport?->printed_by ?: '-');
 
             return [
                 'id'                     => $row->id,
@@ -430,10 +471,15 @@ class ReplenishmentController extends Controller
                 'item_name'              => $row->item_description ?? '-',
                 'from_location_report'   => $hasReportSource ? ($row->from_location ?: '-') : '-',
                 'from_location_analysis' => $hasAnalysisSource ? ($row->from_location ?: '-') : '-',
+                'to_location_report'     => $hasReportSource ? ($row->to_location ?: '-') : '-',
+                'to_location_analysis'   => $hasAnalysisSource ? ($row->to_location ?: '-') : '-',
                 'to_location'            => $row->to_location ?? '-',
                 'qty_report'             => $row->qty_report,
                 'qty_analysis'           => $row->qty_analysis,
                 'status'                 => $row->status ?? '-',
+                'tag_validation'         => $row->tag_validation ?? null,
+                'source_created_at'      => $sourceCreatedAtFormatted,
+                'source_created_by'      => $sourceCreatedBy,
                 'record_type'            => $row->record_type ?? '-',
                 'counts_as_task'         => (bool) $row->counts_as_task,
                 'task_done'              => (bool) $row->task_done,

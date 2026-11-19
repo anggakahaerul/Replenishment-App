@@ -401,6 +401,7 @@ class ExcelParserService
             'from_location'        => ['location', 'from location', 'from loc', 'locid'],
             'to_location'          => ['to location id', 'to location', 'to loc', 'destination'],
             'created'              => ['created', 'created date', 'created datetime', 'created on'],
+            'created_by'           => ['dibuat oleh', 'dibuat_oleh', 'created by', 'createdby', 'created_by', 'create by', 'created by id', 'created by name', 'pembuat', 'user', 'user id', 'username', 'user name', 'operator', 'worker', 'picker', 'staff', 'pic'],
             'storage'              => ['storage'],
             'tag_validation'       => ['tag validation', 'tag', 'status'],
         ]);
@@ -451,6 +452,7 @@ class ExcelParserService
                 'tag_validation'   => $this->getCellStringValue($sheet, $colMap['tag_validation'] ?? null, $r),
                 'tran_date'        => $tranDate,
                 'created_at'       => $createdAt,
+                'created_by'       => $this->getCellStringValue($sheet, $colMap['created_by'] ?? null, $r),
                 'warehouse'        => strtoupper(trim($wh ?? '')),
             ];
         }

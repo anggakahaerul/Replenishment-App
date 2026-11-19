@@ -128,7 +128,7 @@
             </div>
 
             {{-- Header Badges --}}
-            @if(!auth()->user()?->isViewer())
+            @if(auth()->user()?->hasPermission('matching', 'create'))
             <div class="flex items-center gap-2">
                 {{-- Modern Cabang Dropdown --}}
                 @if(auth()->user()?->hasGlobalBranchAccess())
@@ -200,14 +200,14 @@
             @endif
         </div>
 
-        @if(auth()->user()?->isViewer())
-            {{-- ===== READ-ONLY BANNER FOR VIEWER ===== --}}
+        @if(!auth()->user()?->hasPermission('matching', 'create'))
+            {{-- ===== READ-ONLY BANNER ===== --}}
             <div style="background-color: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 12px; padding: 11px 16px; margin-bottom: 18px; display: flex; align-items: center; gap: 10px;">
                 <svg style="width: 16px; height: 16px; color: #2563EB; flex-shrink: 0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span style="font-size: 12.5px; color: #1E40AF; font-weight: 500;">
-                    Mode <strong>Viewer (Read-Only)</strong> — Anda dapat meninjau riwayat matching, report, dan analisa.
+                    Mode <strong>Read-Only ({{ auth()->user()?->role_label }})</strong> — Anda dapat meninjau riwayat matching, report, dan analisa.
                 </span>
             </div>
         @else
@@ -217,32 +217,60 @@
                 <div class="flex gap-5 mb-4">
                     <x-upload-card
                         number="1"
-                        label="File Replenishment Report (.xlsx, .xls)"
+                        label="Replenishment Report (Awal Shift / Bisa Duluan)"
                         file-key="report_file"
                         accept=".xlsx,.xls"
                     />
 
                     <x-upload-card
                         number="2"
-                        label="File Analisa Replenishment (.xlsx, .xls)"
+                        label="Analisa Replenishment (Bisa Menyusul / Bertahap)"
                         file-key="analysis_file"
                         accept=".xlsx,.xls"
                     />
                 </div>
 
-                {{-- Warning Note --}}
-                <div class="flex items-center justify-center gap-2 text-[11px] text-[#64748B] mb-4">
-                    <svg class="w-3.5 h-3.5 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Pastikan kedua berkas telah diunggah dalam format .xlsx sebelum menjalankan proses matching.
+                {{-- Dynamic Upload Mode Indicator --}}
+                <div class="flex items-center justify-center mb-3">
+                    <div x-show="!files.report_file && !files.analysis_file" class="inline-flex items-center gap-2 text-[11px] text-[#64748B]">
+                        <svg class="w-3.5 h-3.5 text-[#94A3B8] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Pilih <strong>Report saja</strong> di awal shift, <strong>Analisa saja</strong> secara bertahap, atau <strong>keduanya sekaligus</strong> (.xlsx / .xls).</span>
+                    </div>
+
+                    <div x-show="files.report_file && !files.analysis_file" x-cloak class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]">
+                        <span class="w-2 h-2 rounded-full bg-[#2563EB]"></span>
+                        <span><strong>Mode: Simpan Report Shift</strong> — task awal dicatat PENDING sampai file Analisa diunggah.</span>
+                    </div>
+
+                    <div x-show="!files.report_file && files.analysis_file" x-cloak class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium bg-[#F0FDF4] text-[#15803D] border border-[#BBF7D0]">
+                        <span class="w-2 h-2 rounded-full bg-[#16A34A]"></span>
+                        <span><strong>Mode: Analisa Susulan</strong> — digabung dengan Analisa sebelumnya untuk mengejar sisa PENDING.</span>
+                    </div>
+
+                    <div x-show="files.report_file && files.analysis_file" x-cloak class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium bg-[#F8FAFC] text-[#0F172A] border border-[#CBD5E1]">
+                        <span class="w-2 h-2 rounded-full bg-[#0F172A]"></span>
+                        <span><strong>Mode: Matching Lengkap</strong> — Report dan Analisa diproses bersamaan.</span>
+                    </div>
+                </div>
+
+                {{-- Optional Target Shift (when uploading Analysis only) --}}
+                <div x-show="files.analysis_file && !files.report_file" x-cloak class="flex flex-wrap items-center justify-center gap-2 mb-4">
+                    <label class="text-[11px] font-medium text-[#475569]">Target Shift Analisa:</label>
+                    <select x-model="targetShift" class="text-[11.5px] border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 bg-white text-[#0F172A] outline-none focus:border-[#2563EB] cursor-pointer">
+                        <option value="">Otomatis dari jam transaksi</option>
+                        <option value="SHIFT 1">SHIFT 1</option>
+                        <option value="SHIFT 2">SHIFT 2</option>
+                    </select>
+                    <span class="text-[10.5px] text-[#94A3B8]">(Biarkan otomatis kecuali ingin memaksa ke shift tertentu)</span>
                 </div>
 
                 {{-- Action Buttons --}}
                 <div class="flex items-center justify-center gap-3">
                     {{-- Primary Button --}}
                     <button
-                        @click="startMatching()"
+                        @click="openCategoryConfirm()"
                         :disabled="!canStartMatching || processing"
                         class="flex items-center gap-2 px-6 py-2.5 rounded-lg text-[13px] font-semibold text-white transition-smooth disabled:cursor-not-allowed"
                         :class="canStartMatching && !processing
@@ -260,7 +288,7 @@
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                             </svg>
                         </template>
-                        <span x-text="processing ? 'Memproses...' : 'Jalankan Rekonsiliasi'"></span>
+                        <span x-text="processing ? 'Memproses...' : actionButtonLabel"></span>
                     </button>
 
                     {{-- Reset Button --}}
@@ -522,8 +550,9 @@
                             <th>Nama Produk</th>
                             <th>From (Report)</th>
                             <th>From (Analisa)</th>
-                            <th>To Location</th>
-                            <th style="text-align: right;">Qty Repl</th>
+                            <th>To (Report)</th>
+                            <th>To (Analisa)</th>
+                            <th style="text-align: right;">Refill Needed</th>
                             <th style="text-align: right;">Qty Analisa</th>
                             <th style="text-align: center;">Status</th>
                         </tr>
@@ -557,11 +586,19 @@
                                     </div>
                                 </td>
 
-                                {{-- TO LOCATION --}}
+                                {{-- TO LOCATION (REPORT) --}}
                                 <td>
                                     <div style="display: inline-flex; align-items: center; gap: 5px;">
-                                        <span class="badge-loc-dst" x-text="row.to_location || '-'"></span>
-                                        <span style="font-size: 10.5px; color: #94A3B8; font-weight: 500;" x-text="row.to_location_type" x-show="row.to_location_type"></span>
+                                        <span class="badge-loc-dst" x-text="row.to_location_report || '-'"></span>
+                                        <span style="font-size: 10.5px; color: #94A3B8; font-weight: 500;" x-text="row.to_location_report_type" x-show="row.to_location_report_type"></span>
+                                    </div>
+                                </td>
+
+                                {{-- TO LOCATION (ANALISA) --}}
+                                <td>
+                                    <div style="display: inline-flex; align-items: center; gap: 5px;">
+                                        <span class="badge-loc-dst" x-text="row.to_location_analysis || '-'"></span>
+                                        <span style="font-size: 10.5px; color: #94A3B8; font-weight: 500;" x-text="row.to_location_analysis_type" x-show="row.to_location_analysis_type"></span>
                                     </div>
                                 </td>
 
@@ -826,7 +863,7 @@
                             <th style="width: 148px; white-space: nowrap;">Hasil Matching</th>
                             <th style="width: 180px;">Status & Ringkasan</th>
                             <th style="width: 130px;">Waktu Import</th>
-                            @if(!auth()->user()?->isViewer())
+                            @if(auth()->user()?->hasPermission('matching', 'delete'))
                                 <th style="text-align: center; width: 88px;">Aksi</th>
                             @endif
                         </tr>
@@ -953,7 +990,7 @@
                                 <td style="font-size: 12px !important; color: #64748B !important; white-space: nowrap;" x-text="hRow.imported_at"></td>
 
                                 {{-- Aksi (Hapus) --}}
-                                @if(!auth()->user()?->isViewer())
+                                @if(auth()->user()?->hasPermission('matching', 'delete'))
                                     <td style="text-align: center;">
                                         <button type="button"
                                                 @click.stop="openDeleteModal(hRow)"
@@ -1071,6 +1108,92 @@
             </div>
         </div>
 
+        {{-- ===== CATEGORY VERIFICATION MODAL ===== --}}
+        <div
+            x-show="showCategoryConfirmModal"
+            x-cloak
+            style="position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background-color: rgba(15, 23, 42, 0.5); backdrop-filter: blur(2px);"
+            @keydown.escape.window="showCategoryConfirmModal = false"
+        >
+            <div
+                @click.outside="showCategoryConfirmModal = false"
+                style="background-color: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.1); width: 100%; max-width: 460px; padding: 22px 24px;"
+            >
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                        <div style="width: 38px; height: 38px; border-radius: 10px; background-color: #EFF6FF; border: 1px solid #BFDBFE; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <svg style="width: 19px; height: 19px; color: #2563EB;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 style="font-size: 15.5px; font-weight: 800; color: #0F172A; margin: 0;">Verifikasi Kategori Data</h3>
+                            <p style="font-size: 12px; color: #64748B; margin: 3px 0 0 0; line-height: 1.4;">
+                                Pilih kategori data sebelum diproses agar masuk ke ringkasan yang tepat.
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" @click="showCategoryConfirmModal = false" style="background: none; border: none; color: #94A3B8; cursor: pointer; padding: 2px;">
+                        <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px;">
+                    <button type="button" @click="categoryMode = 'DRY'"
+                        :style="categoryMode === 'DRY'
+                            ? 'width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #2563EB; background-color: #EFF6FF; display: flex; align-items: flex-start; gap: 11px; cursor: pointer;'
+                            : 'width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid #E2E8F0; background-color: #FFFFFF; display: flex; align-items: flex-start; gap: 11px; cursor: pointer;'">
+                        <span :style="categoryMode === 'DRY'
+                            ? 'margin-top: 2px; width: 16px; height: 16px; border-radius: 999px; border: 5px solid #2563EB; background-color: #FFFFFF; flex-shrink: 0;'
+                            : 'margin-top: 2px; width: 16px; height: 16px; border-radius: 999px; border: 1.5px solid #CBD5E1; background-color: #FFFFFF; flex-shrink: 0;'"></span>
+                        <div>
+                            <div style="font-size: 13px; font-weight: 700; color: #0F172A;">DRY</div>
+                            <div style="font-size: 11.5px; color: #64748B; margin-top: 2px; line-height: 1.4;">Semua data pada upload ini disimpan sebagai kategori <strong style="color: #334155;">DRY</strong>.</div>
+                        </div>
+                    </button>
+
+                    <button type="button" @click="categoryMode = 'FROZEN'"
+                        :style="categoryMode === 'FROZEN'
+                            ? 'width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #4F46E5; background-color: #EEF2FF; display: flex; align-items: flex-start; gap: 11px; cursor: pointer;'
+                            : 'width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid #E2E8F0; background-color: #FFFFFF; display: flex; align-items: flex-start; gap: 11px; cursor: pointer;'">
+                        <span :style="categoryMode === 'FROZEN'
+                            ? 'margin-top: 2px; width: 16px; height: 16px; border-radius: 999px; border: 5px solid #4F46E5; background-color: #FFFFFF; flex-shrink: 0;'
+                            : 'margin-top: 2px; width: 16px; height: 16px; border-radius: 999px; border: 1.5px solid #CBD5E1; background-color: #FFFFFF; flex-shrink: 0;'"></span>
+                        <div>
+                            <div style="font-size: 13px; font-weight: 700; color: #0F172A;">FROZEN</div>
+                            <div style="font-size: 11.5px; color: #64748B; margin-top: 2px; line-height: 1.4;">Semua data pada upload ini disimpan sebagai kategori <strong style="color: #334155;">FROZEN</strong>.</div>
+                        </div>
+                    </button>
+
+                    <button type="button" @click="categoryMode = 'AUTO'"
+                        :style="categoryMode === 'AUTO'
+                            ? 'width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #0F172A; background-color: #F8FAFC; display: flex; align-items: flex-start; gap: 11px; cursor: pointer;'
+                            : 'width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid #E2E8F0; background-color: #FFFFFF; display: flex; align-items: flex-start; gap: 11px; cursor: pointer;'">
+                        <span :style="categoryMode === 'AUTO'
+                            ? 'margin-top: 2px; width: 16px; height: 16px; border-radius: 999px; border: 5px solid #0F172A; background-color: #FFFFFF; flex-shrink: 0;'
+                            : 'margin-top: 2px; width: 16px; height: 16px; border-radius: 999px; border: 1.5px solid #CBD5E1; background-color: #FFFFFF; flex-shrink: 0;'"></span>
+                        <div>
+                            <div style="font-size: 13px; font-weight: 700; color: #0F172A;">Campuran (Deteksi Otomatis)</div>
+                            <div style="font-size: 11.5px; color: #64748B; margin-top: 2px; line-height: 1.4;">1 file berisi Dry &amp; Frozen sekaligus (cek kolom Storage / kode lokasi).</div>
+                        </div>
+                    </button>
+                </div>
+
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid #F1F5F9;">
+                    <button type="button" @click="showCategoryConfirmModal = false"
+                        style="height: 36px; padding: 0 16px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: #475569; background-color: #FFFFFF; border: 1px solid #E2E8F0; cursor: pointer;">
+                        Batal
+                    </button>
+                    <button type="button" @click="confirmAndStartMatching()"
+                        style="height: 36px; padding: 0 18px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: #FFFFFF; background-color: #0F172A; border: none; cursor: pointer; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);">
+                        Konfirmasi &amp; Proses
+                    </button>
+                </div>
+            </div>
+        </div>
+
         {{-- ===== SUCCESS NOTIFICATION TOAST ===== --}}
         <div
             x-show="showNotification"
@@ -1173,6 +1296,9 @@
                 searchQuery: '',
                 filterStatus: 'all',
                 filterZone: 'all',
+                targetShift: '',
+                categoryMode: 'AUTO',
+                showCategoryConfirmModal: false,
 
                 // Notifications
                 showNotification: false,
@@ -1185,7 +1311,14 @@
 
                 // Computed
                 get canStartMatching() {
-                    return this.files.report_file && this.files.analysis_file;
+                    return Boolean(this.files.report_file || this.files.analysis_file);
+                },
+
+                get actionButtonLabel() {
+                    if (this.files.report_file && this.files.analysis_file) return 'Jalankan Rekonsiliasi';
+                    if (this.files.report_file) return 'Simpan Report Shift';
+                    if (this.files.analysis_file) return 'Upload & Update Matching';
+                    return 'Jalankan Rekonsiliasi';
                 },
 
                 get matchSummary() {
@@ -1211,7 +1344,10 @@
                         results = results.filter(row =>
                             (row.sku || '').toLowerCase().includes(q) ||
                             (row.nama_produk || '').toLowerCase().includes(q) ||
-                            (row.from_location_report || '').toLowerCase().includes(q)
+                            (row.from_location_report || '').toLowerCase().includes(q) ||
+                            (row.from_location_analysis || '').toLowerCase().includes(q) ||
+                            (row.to_location_report || '').toLowerCase().includes(q) ||
+                            (row.to_location_analysis || '').toLowerCase().includes(q)
                         );
                     }
 
@@ -1263,6 +1399,28 @@
                     return size.toFixed(1) + ' ' + units[i];
                 },
 
+                openCategoryConfirm() {
+                    if (!this.canStartMatching || this.processing) return;
+                    const repName = (this.files.report_file?.name || '').toLowerCase();
+                    const anaName = (this.files.analysis_file?.name || '').toLowerCase();
+                    const combined = `${repName} ${anaName}`;
+                    const hasDry = combined.includes('dry');
+                    const hasFrozen = combined.includes('frozen');
+                    if (hasFrozen && !hasDry) {
+                        this.categoryMode = 'FROZEN';
+                    } else if (hasDry && !hasFrozen) {
+                        this.categoryMode = 'DRY';
+                    } else {
+                        this.categoryMode = 'AUTO';
+                    }
+                    this.showCategoryConfirmModal = true;
+                },
+
+                confirmAndStartMatching() {
+                    this.showCategoryConfirmModal = false;
+                    this.startMatching();
+                },
+
                 async startMatching() {
                     if (!this.canStartMatching || this.processing) return;
 
@@ -1281,8 +1439,16 @@
 
                     try {
                         const formData = new FormData();
-                        formData.append('report_file', this.files.report_file);
-                        formData.append('analysis_file', this.files.analysis_file);
+                        if (this.files.report_file) {
+                            formData.append('report_file', this.files.report_file);
+                        }
+                        if (this.files.analysis_file) {
+                            formData.append('analysis_file', this.files.analysis_file);
+                        }
+                        if (this.targetShift && this.files.analysis_file && !this.files.report_file) {
+                            formData.append('target_shift', this.targetShift);
+                        }
+                        formData.append('category_mode', this.categoryMode || 'AUTO');
                         if (this.selectedBranchId) {
                             formData.append('branch_id', this.selectedBranchId);
                         }
@@ -1316,8 +1482,13 @@
                         const totalRows = (data?.summary?.total_rows ?? data?.summary?.total ?? 0).toLocaleString('id-ID');
                         const shiftName = data?.report_shift || 'Shift';
                         const repDate = data?.report_date || '';
-                        if (data?.was_replaced) {
-                            this.notificationMessage = `Data ${shiftName} (${repDate}) berhasil diperbarui (snapshot lama digantikan otomatis). ${totalRows} baris diproses.`;
+                        const matchPctLabel = data?.summary?.match_percentage ?? 0;
+                        if (data?.upload_mode === 'report_only') {
+                            this.notificationMessage = `Report ${shiftName} (${repDate}) berhasil disimpan (${totalRows} task, progres ${matchPctLabel}%). Versi lama tetap tersimpan di history.`;
+                        } else if (data?.upload_mode === 'analysis_only') {
+                            this.notificationMessage = `Analisa susulan ${shiftName} (${repDate}) berhasil digabung & di-match ulang. Progres sekarang ${matchPctLabel}%.`;
+                        } else if (data?.was_replaced) {
+                            this.notificationMessage = `Data ${shiftName} (${repDate}) berhasil diperbarui (history versi lama tetap tersimpan). ${totalRows} baris diproses.`;
                         } else {
                             this.notificationMessage = `Data ${shiftName} (${repDate}) berhasil di-import dan dikalkulasi ke ringkasan harian. ${totalRows} baris diproses.`;
                         }

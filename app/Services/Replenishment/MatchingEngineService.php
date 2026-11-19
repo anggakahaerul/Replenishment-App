@@ -92,6 +92,13 @@ class MatchingEngineService
             $wholeQty     = (float) ($anaRow['whole_qty'] ?? 0);
             $tagRaw       = $anaRow['tag_validation'] ?? '';
             $storage      = $anaRow['storage']        ?? null;
+            $rawCreatedAt = $anaRow['created_at']     ?? null;
+            $sourceCreatedAt = $rawCreatedAt instanceof \DateTimeInterface
+                ? $rawCreatedAt->format('Y-m-d H:i:s')
+                : (is_string($rawCreatedAt) && $rawCreatedAt !== '' ? $rawCreatedAt : null);
+            $sourceCreatedBy = isset($anaRow['created_by']) && trim((string) $anaRow['created_by']) !== ''
+                ? trim((string) $anaRow['created_by'])
+                : null;
             $isEligible   = strtolower(trim($tagRaw)) === 'replenishment';
 
             $strictKey = $this->makeStrictKey($itemNo, $fromLoc, $toLoc);
@@ -121,7 +128,9 @@ class MatchingEngineService
                     taskDone: false,
                     tagValidation: $tagRaw,
                     storage: $storage,
-                    now: $now
+                    now: $now,
+                    sourceCreatedAt: $sourceCreatedAt,
+                    sourceCreatedBy: $sourceCreatedBy
                 );
                 continue;
             }
@@ -150,7 +159,9 @@ class MatchingEngineService
                     taskDone: false,
                     tagValidation: $tagRaw,
                     storage: $storage,
-                    now: $now
+                    now: $now,
+                    sourceCreatedAt: $sourceCreatedAt,
+                    sourceCreatedBy: $sourceCreatedBy
                 );
                 continue;
             }
@@ -195,7 +206,9 @@ class MatchingEngineService
                     taskDone: true,
                     tagValidation: $tagRaw,
                     storage: $storage,
-                    now: $now
+                    now: $now,
+                    sourceCreatedAt: $sourceCreatedAt,
+                    sourceCreatedBy: $sourceCreatedBy
                 );
             } else {
                 // All quota for this key exhausted → DUPLICATE RAW
@@ -219,7 +232,9 @@ class MatchingEngineService
                     taskDone: false,
                     tagValidation: $tagRaw,
                     storage: $storage,
-                    now: $now
+                    now: $now,
+                    sourceCreatedAt: $sourceCreatedAt,
+                    sourceCreatedBy: $sourceCreatedBy
                 );
             }
         }
@@ -346,9 +361,11 @@ class MatchingEngineService
                 'task_done'       => $taskDone,
                 'tag_validation'  => null,
                 'storage'         => null,
-                'source_expired'  => $task['source_expired'] ?? null,
-                'created_at'      => $now,
-                'updated_at'      => $now,
+                'source_expired'    => $task['source_expired'] ?? null,
+                'source_created_at' => null,
+                'source_created_by' => null,
+                'created_at'        => $now,
+                'updated_at'        => $now,
             ];
         }
 
@@ -404,31 +421,35 @@ class MatchingEngineService
         bool $taskDone,
         ?string $tagValidation,
         ?string $storage,
-        string $now
+        string $now,
+        ?string $sourceCreatedAt = null,
+        ?string $sourceCreatedBy = null
     ): array {
         return [
-            'batch_id'        => $batchId,
-            'report_date'     => $reportDate,
-            'report_shift'    => $reportShift,
-            'category'        => $category,
-            'record_type'     => 'ANALYSIS',
-            'item_no'         => $itemNo,
-            'item_description'=> $itemDescription,
-            'from_location'   => $fromLocation,
-            'to_location'     => $toLocation,
-            'task_key'        => $taskKey,
-            'group_key'       => $groupKey,
-            'qty_report'      => $qtyReport,
-            'qty_analysis'    => $qtyAnalysis,
-            'qty_check'       => $qtyCheck,
-            'status'          => $status,
-            'counts_as_task'  => $countsAsTask,
-            'task_done'       => $taskDone,
-            'tag_validation'  => $tagValidation,
-            'storage'         => $storage,
-            'source_expired'  => null,
-            'created_at'      => $now,
-            'updated_at'      => $now,
+            'batch_id'          => $batchId,
+            'report_date'       => $reportDate,
+            'report_shift'      => $reportShift,
+            'category'          => $category,
+            'record_type'       => 'ANALYSIS',
+            'item_no'           => $itemNo,
+            'item_description'  => $itemDescription,
+            'from_location'     => $fromLocation,
+            'to_location'       => $toLocation,
+            'task_key'          => $taskKey,
+            'group_key'         => $groupKey,
+            'qty_report'        => $qtyReport,
+            'qty_analysis'      => $qtyAnalysis,
+            'qty_check'         => $qtyCheck,
+            'status'            => $status,
+            'counts_as_task'    => $countsAsTask,
+            'task_done'         => $taskDone,
+            'tag_validation'    => $tagValidation,
+            'storage'           => $storage,
+            'source_expired'    => null,
+            'source_created_at' => $sourceCreatedAt,
+            'source_created_by' => $sourceCreatedBy,
+            'created_at'        => $now,
+            'updated_at'        => $now,
         ];
     }
 }

@@ -201,6 +201,55 @@ class DashboardController extends Controller
             'melebihi_poc'  => $s1Melebihi + $s2Melebihi,
         ];
 
+        // Build per-date breakdown for the 3 Shift Cards (supports daily / weekly / monthly / custom date range)
+        $allShiftActivities = DB::table('replenishment_match_results')
+            ->when($activeBranchFilter !== null, fn($q) => $q->where('branch_id', $activeBranchFilter))
+            ->whereIn('report_shift', ['SHIFT 1', 'SHIFT 2'])
+            ->selectRaw("
+                report_date,
+                report_shift,
+                SUM(CASE WHEN status = 'PUT AWAY' THEN 1 ELSE 0 END) as put_away,
+                SUM(CASE WHEN status = 'TRANSFER' THEN 1 ELSE 0 END) as transfer,
+                SUM(CASE WHEN status = 'MELEBIHI POC' THEN 1 ELSE 0 END) as melebihi_poc
+            ")
+            ->groupBy('report_date', 'report_shift')
+            ->get()
+            ->groupBy('report_date');
+
+        $cardDailyData = $items->groupBy('raw_date')
+            ->sortKeys()
+            ->map(function ($dayRows, $dateStr) use ($allShiftActivities) {
+                $acts = $allShiftActivities->get($dateStr, collect())->keyBy('report_shift');
+
+                $s1Total = (int) $dayRows->sum('shift_1_total');
+                $s1Match = (int) $dayRows->sum('shift_1_match');
+                $s1Pend  = (int) $dayRows->sum('pending_s1');
+                $s1Put   = (int) ($acts['SHIFT 1']->put_away ?? 0);
+                $s1Trf   = (int) ($acts['SHIFT 1']->transfer ?? 0);
+                $s1Poc   = (int) ($acts['SHIFT 1']->melebihi_poc ?? 0);
+
+                $s2Total = (int) $dayRows->sum('shift_2_total');
+                $s2Match = (int) $dayRows->sum('shift_2_match');
+                $s2Pend  = (int) $dayRows->sum('pending_s2');
+                $s2Put   = (int) ($acts['SHIFT 2']->put_away ?? 0);
+                $s2Trf   = (int) ($acts['SHIFT 2']->transfer ?? 0);
+                $s2Poc   = (int) ($acts['SHIFT 2']->melebihi_poc ?? 0);
+
+                $allTotal = (int) $dayRows->sum('total_tasks');
+                $allMatch = (int) $dayRows->sum('match_count');
+                $allPend  = (int) $dayRows->sum('unmatch');
+
+                return [
+                    'date'  => (string) $dateStr,
+                    'month' => substr((string) $dateStr, 0, 7),
+                    's1'    => ['total' => $s1Total, 'match' => $s1Match, 'pending' => $s1Pend, 'put_away' => $s1Put, 'transfer' => $s1Trf, 'melebihi_poc' => $s1Poc],
+                    's2'    => ['total' => $s2Total, 'match' => $s2Match, 'pending' => $s2Pend, 'put_away' => $s2Put, 'transfer' => $s2Trf, 'melebihi_poc' => $s2Poc],
+                    'all'   => ['total' => $allTotal, 'match' => $allMatch, 'pending' => $allPend, 'put_away' => $s1Put + $s2Put, 'transfer' => $s1Trf + $s2Trf, 'melebihi_poc' => $s1Poc + $s2Poc],
+                ];
+            })
+            ->values()
+            ->all();
+
         // Build dynamic trend data from actual database rows (all available dates for range/month filter)
         $allTrendDatesRaw = DB::table('replenishment_daily_summaries')
             ->when($activeBranchFilter !== null, fn($q) => $q->where('branch_id', $activeBranchFilter))
@@ -345,6 +394,7 @@ class DashboardController extends Controller
         $allImports = Import::query()
             ->withExists('storedFile')
             ->when($activeBranchFilter !== null, fn($q) => $q->where('branch_id', $activeBranchFilter))
+            ->orderByDesc('is_active')
             ->orderByDesc('id')
             ->get();
 
@@ -458,6 +508,7 @@ class DashboardController extends Controller
             'shift1Card',
             'shift2Card',
             'allShiftCard',
+            'cardDailyData',
             'trendData',
             'matchHistoryItems',
             'search',

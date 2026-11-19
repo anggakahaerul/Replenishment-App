@@ -22,9 +22,11 @@ class Import extends Model
         'report_date',
         'file_hash',
         'status',
+        'is_active',
         'row_count',
         'imported_at',
         'report_shift',
+        'storage_category',
         'site',
         'printed_by',
         'printed_at',
@@ -35,6 +37,7 @@ class Import extends Model
     protected $casts = [
         'imported_at' => 'datetime',
         'printed_at'  => 'datetime',
+        'is_active'   => 'boolean',
     ];
 
     public function branch(): BelongsTo

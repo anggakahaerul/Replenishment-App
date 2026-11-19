@@ -50,11 +50,11 @@
             text-align: left;
         }
 
-        /* 3-Column Role Cards */
+        /* 4-Column Role Cards */
         .role-cards-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 16px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
             margin-bottom: 24px;
             width: 100%;
             box-sizing: border-box;
@@ -256,9 +256,120 @@
             text-transform: uppercase;
             flex-shrink: 0;
         }
+
+        .users-tab-bar {
+            display: inline-flex;
+            align-items: center;
+            background-color: #F1F5F9;
+            border: 1px solid #E2E8F0;
+            border-radius: 9999px;
+            padding: 4px;
+            gap: 4px;
+            margin-bottom: 20px;
+        }
+
+        .users-tab-btn {
+            padding: 7px 18px;
+            border-radius: 9999px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #64748B;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .users-tab-btn:hover {
+            color: #0F172A;
+        }
+
+        .users-tab-btn.active {
+            background-color: #FFFFFF;
+            color: #0F172A;
+            font-weight: 700;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+
+        .users-role-pills {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .users-role-pill {
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-size: 12.5px;
+            font-weight: 600;
+            color: #475569;
+            background-color: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            transition: all 0.15s ease;
+        }
+
+        .users-role-pill:hover {
+            border-color: #CBD5E1;
+            background-color: #F8FAFC;
+        }
+
+        .users-role-pill.active {
+            background-color: #0F172A;
+            color: #FFFFFF;
+            border-color: #0F172A;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+        }
+
+        .users-role-pill-count {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 9999px;
+            background-color: #F1F5F9;
+            color: #475569;
+        }
+
+        .users-role-pill.active .users-role-pill-count {
+            background-color: rgba(255, 255, 255, 0.18);
+            color: #FFFFFF;
+        }
+
+        .perm-matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .perm-matrix-table th {
+            padding: 12px 16px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748B;
+            background-color: #F8FAFC;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .perm-matrix-table td {
+            padding: 13px 16px;
+            border-bottom: 1px solid #F1F5F9;
+            vertical-align: middle;
+        }
+
+        .perm-matrix-table tbody tr:hover {
+            background-color: #F8FAFC;
+        }
     </style>
 
     <div class="users-container" x-data="{
+        activeSection: '{{ request('tab') === 'roles' ? 'roles' : 'users' }}',
+        activeRoleSlug: '{{ $roles->first()?->slug ?? 'admin' }}',
         createModalOpen: false,
         editModalOpen: false,
         createRole: 'operator',
@@ -273,17 +384,31 @@
     }">
 
         {{-- ===== PAGE HEADER ===== --}}
-        <div class="users-header">
+        <div class="users-header" style="margin-bottom: 16px;">
             <div class="users-header-left">
-                <h1 class="users-header-title">Manajemen Pengguna & Role</h1>
-                <p class="users-header-desc">Kelola akun dan izin akses sistem (Admin, Operator, dan Viewer)</p>
+                <h1 class="users-header-title">Manajemen Pengguna &amp; Role</h1>
+                <p class="users-header-desc">Kelola akun serta atur permission tiap menu untuk role Admin, Operator, Supervisor, dan Manager</p>
             </div>
 
+            @if(auth()->user()?->hasPermission('users', 'create'))
             <button type="button" @click="createModalOpen = true" class="users-btn-add">
                 <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
                 Tambah Pengguna
+            </button>
+            @endif
+        </div>
+
+        {{-- ===== SECTION TAB SWITCHER ===== --}}
+        <div class="users-tab-bar">
+            <button type="button" @click="activeSection = 'users'"
+                class="users-tab-btn" :class="{ 'active': activeSection === 'users' }">
+                Daftar Pengguna
+            </button>
+            <button type="button" @click="activeSection = 'roles'"
+                class="users-tab-btn" :class="{ 'active': activeSection === 'roles' }">
+                Role &amp; Permission
             </button>
         </div>
 
@@ -306,7 +431,8 @@
             </div>
         @endif
 
-        {{-- ===== 3-COLUMN ROLE CARDS (Width & Height Balanced) ===== --}}
+        <div x-show="activeSection === 'users'">
+        {{-- ===== 4-COLUMN ROLE CARDS ===== --}}
         <div class="role-cards-grid">
             {{-- Admin Card --}}
             <div class="role-card">
@@ -314,9 +440,9 @@
                     <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; background-color: #F3E8FF; color: #7E22CE; border: 1px solid #E9D5FF; letter-spacing: 0.05em;">
                         ADMIN
                     </span>
-                    <span style="font-size: 13px; font-weight: 700; color: #0F172A;">Akses Penuh</span>
+                    <span style="font-size: 13px; font-weight: 700; color: #0F172A;">Super User</span>
                 </div>
-                <p class="role-card-desc">Bisa upload file, download file, melihat riwayat matching, melihat dashboard, dan mengelola pengguna.</p>
+                <p class="role-card-desc">Akses penuh ke seluruh menu, master data, manajemen user &amp; role, serta application log.</p>
             </div>
 
             {{-- Operator Card --}}
@@ -327,18 +453,29 @@
                     </span>
                     <span style="font-size: 13px; font-weight: 700; color: #0F172A;">Operasional</span>
                 </div>
-                <p class="role-card-desc">Bisa upload file excel, memproses matching replenishment, mengunduh file, dan melihat dashboard.</p>
+                <p class="role-card-desc">Upload file excel, proses matching replenishment, unduh file, serta lihat dashboard &amp; history.</p>
             </div>
 
-            {{-- Viewer Card --}}
+            {{-- Supervisor Card --}}
             <div class="role-card">
                 <div class="role-card-header">
                     <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; background-color: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD; letter-spacing: 0.05em;">
-                        VIEWER
+                        SUPERVISOR
                     </span>
                     <span style="font-size: 13px; font-weight: 700; color: #0F172A;">Hanya Lihat</span>
                 </div>
-                <p class="role-card-desc">Hanya bisa memantau Dashboard Analitik, melihat riwayat matching, dan memeriksa rincian data (tanpa upload).</p>
+                <p class="role-card-desc">Bisa melihat semua menu operasional &amp; master data (tanpa hapus, tanpa User &amp; Application Log).</p>
+            </div>
+
+            {{-- Manager Card --}}
+            <div class="role-card">
+                <div class="role-card-header">
+                    <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; background-color: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE; letter-spacing: 0.05em;">
+                        MANAGER
+                    </span>
+                    <span style="font-size: 13px; font-weight: 700; color: #0F172A;">Lihat &amp; Hapus</span>
+                </div>
+                <p class="role-card-desc">Bisa melihat &amp; menghapus di menu operasional dan master data (kecuali User &amp; Application Log).</p>
             </div>
         </div>
 
@@ -368,7 +505,8 @@
                         <option value="">Semua Role</option>
                         <option value="admin" {{ $roleFilter === 'admin' ? 'selected' : '' }}>Admin</option>
                         <option value="operator" {{ $roleFilter === 'operator' ? 'selected' : '' }}>Operator</option>
-                        <option value="viewer" {{ $roleFilter === 'viewer' ? 'selected' : '' }}>Viewer</option>
+                        <option value="supervisor" {{ $roleFilter === 'supervisor' ? 'selected' : '' }}>Supervisor</option>
+                        <option value="manager" {{ $roleFilter === 'manager' ? 'selected' : '' }}>Manager</option>
                     </select>
 
                     {{-- Search Input --}}
@@ -438,10 +576,15 @@
                                             <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #15803D;"></span>
                                             Operator
                                         </span>
+                                    @elseif($user->role === 'manager')
+                                        <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background-color: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #6D28D9;"></span>
+                                            Manager
+                                        </span>
                                     @else
                                         <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; background-color: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD;">
                                             <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #0369A1;"></span>
-                                            Viewer
+                                            {{ $user->role === 'supervisor' ? 'Supervisor' : ucfirst($user->role) }}
                                         </span>
                                     @endif
                                 </td>
@@ -501,6 +644,103 @@
                 </div>
             @endif
         </div>
+        </div>
+
+        {{-- ===== ROLE & PERMISSION MANAGEMENT SECTION ===== --}}
+        <div x-show="activeSection === 'roles'" x-cloak>
+            {{-- Role Selector Pills --}}
+            <div class="users-role-pills">
+                @foreach($roles as $roleObj)
+                    <button type="button"
+                        @click="activeRoleSlug = '{{ $roleObj->slug }}'"
+                        class="users-role-pill"
+                        :class="{ 'active': activeRoleSlug === '{{ $roleObj->slug }}' }">
+                        <span>{{ $roleObj->name }}</span>
+                        <span class="users-role-pill-count">{{ $roleObj->users()->count() }}</span>
+                    </button>
+                @endforeach
+            </div>
+
+            @php
+                $actionColumns = [
+                    'view'     => 'View',
+                    'create'   => 'Create',
+                    'edit'     => 'Edit',
+                    'delete'   => 'Delete',
+                    'download' => 'Download',
+                ];
+            @endphp
+
+            @foreach($roles as $roleObj)
+                <div x-show="activeRoleSlug === '{{ $roleObj->slug }}'" x-cloak class="users-table-card">
+                    <form action="{{ route('users.roles.update', $roleObj) }}" method="POST">
+                        @csrf
+                        @method('PUT')
+
+                        <div class="users-toolbar">
+                            <div class="users-toolbar-left">
+                                <h2 class="users-toolbar-title">Permission Matrix — {{ $roleObj->name }}</h2>
+                                <p class="users-toolbar-sub">{{ $roleObj->description }}</p>
+                            </div>
+
+                            @if($roleObj->slug === 'admin')
+                                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background-color: #F3E8FF; color: #7E22CE; border: 1px solid #E9D5FF;">
+                                    Super User — Akses Penuh Terkunci
+                                </span>
+                            @elseif(auth()->user()?->hasPermission('users', 'edit'))
+                                <button type="submit" class="users-btn-add" style="background-color: #2563EB;">
+                                    Simpan Permission
+                                </button>
+                            @endif
+                        </div>
+
+                        <div class="users-table-wrapper">
+                            <table class="perm-matrix-table">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; width: 280px;">Menu / Modul</th>
+                                        @foreach($actionColumns as $actLabel)
+                                            <th style="text-align: center; width: 120px;">{{ $actLabel }}</th>
+                                        @endforeach
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($permissionMenus as $menuKey => $menuMeta)
+                                        <tr>
+                                            <td>
+                                                <div style="font-size: 13px; font-weight: 700; color: #0F172A;">{{ $menuMeta['label'] }}</div>
+                                            </td>
+                                            @foreach($actionColumns as $actionKey => $actLabel)
+                                                <td style="text-align: center;">
+                                                    @if(array_key_exists($actionKey, $menuMeta['actions']))
+                                                        @php
+                                                            $isChecked = $roleObj->slug === 'admin'
+                                                                ? true
+                                                                : (bool) ($roleObj->permissions[$menuKey][$actionKey] ?? false);
+                                                        @endphp
+                                                        <label title="{{ $menuMeta['actions'][$actionKey] }}"
+                                                               style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; cursor: {{ $roleObj->slug === 'admin' ? 'not-allowed' : 'pointer' }};">
+                                                            <input type="checkbox"
+                                                                   name="permissions[{{ $menuKey }}][{{ $actionKey }}]"
+                                                                   value="1"
+                                                                   {{ $isChecked ? 'checked' : '' }}
+                                                                   {{ $roleObj->slug === 'admin' ? 'disabled' : '' }}
+                                                                   style="width: 17px; height: 17px; accent-color: #2563EB; cursor: {{ $roleObj->slug === 'admin' ? 'not-allowed' : 'pointer' }};">
+                                                        </label>
+                                                    @else
+                                                        <span style="color: #CBD5E1; font-weight: 700;">—</span>
+                                                    @endif
+                                                </td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+                </div>
+            @endforeach
+        </div>
 
         {{-- ===== MODAL TAMBAH PENGGUNA ===== --}}
         <div x-show="createModalOpen"
@@ -546,9 +786,10 @@
                         <div>
                             <label style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 4px;">Role / Peran</label>
                             <select name="role" x-model="createRole" required style="width: 100%; height: 38px; padding: 0 10px; font-size: 13px; border: 1px solid #CBD5E1; border-radius: 8px; outline: none; box-sizing: border-box;">
-                                <option value="operator">Operator (Bisa upload & proses matching)</option>
-                                <option value="viewer">Viewer (Hanya lihat dashboard & laporan)</option>
-                                <option value="admin">Admin (Akses penuh & kelola user)</option>
+                                <option value="operator">Operator (Upload &amp; proses matching)</option>
+                                <option value="supervisor">Supervisor (Hanya lihat semua menu kecuali User &amp; Log)</option>
+                                <option value="manager">Manager (Lihat &amp; hapus semua menu kecuali User &amp; Log)</option>
+                                <option value="admin">Admin (Super User — akses penuh)</option>
                             </select>
                         </div>
 
@@ -630,9 +871,10 @@
                         <div>
                             <label style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; margin-bottom: 4px;">Role / Peran</label>
                             <select name="role" x-model="editUser.role" required style="width: 100%; height: 38px; padding: 0 10px; font-size: 13px; border: 1px solid #CBD5E1; border-radius: 8px; outline: none; box-sizing: border-box;">
-                                <option value="operator">Operator (Bisa upload & proses matching)</option>
-                                <option value="viewer">Viewer (Hanya lihat dashboard & laporan)</option>
-                                <option value="admin">Admin (Akses penuh & kelola user)</option>
+                                <option value="operator">Operator (Upload &amp; proses matching)</option>
+                                <option value="supervisor">Supervisor (Hanya lihat semua menu kecuali User &amp; Log)</option>
+                                <option value="manager">Manager (Lihat &amp; hapus semua menu kecuali User &amp; Log)</option>
+                                <option value="admin">Admin (Super User — akses penuh)</option>
                             </select>
                         </div>
 

@@ -351,8 +351,8 @@
                     <div class="text-[10px] font-semibold text-[#475569] tracking-wider uppercase">System Setting</div>
                 </div>
 
-                {{-- Master Data Cabang (Admin only) --}}
-                @if(auth()->user()?->isAdmin())
+                {{-- Master Data Cabang --}}
+                @if(auth()->user()?->hasPermission('master_branches', 'view'))
                 <a href="{{ route('master.branches.index') }}"
                    class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-smooth
                           {{ request()->routeIs('master.branches.*') ? 'bg-white text-[#0F1B2D]' : 'text-[#94A3B8] hover:bg-[#1A2B42] hover:text-white' }}">
@@ -363,8 +363,8 @@
                 </a>
                 @endif
 
-                {{-- Master Data Shift (Admin only) --}}
-                @if(auth()->user()?->isAdmin())
+                {{-- Master Data Shift --}}
+                @if(auth()->user()?->hasPermission('master_shifts', 'view'))
                 <a href="{{ route('master.shifts.index') }}"
                    class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-smooth
                           {{ request()->routeIs('master.shifts.*') ? 'bg-white text-[#0F1B2D]' : 'text-[#94A3B8] hover:bg-[#1A2B42] hover:text-white' }}">
@@ -375,8 +375,8 @@
                 </a>
                 @endif
 
-                {{-- User & Role (Admin only) --}}
-                @if(auth()->user()?->isAdmin())
+                {{-- User & Role --}}
+                @if(auth()->user()?->hasPermission('users', 'view'))
                 <a href="{{ route('users.index') }}"
                    class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-smooth
                           {{ request()->routeIs('users.*') ? 'bg-white text-[#0F1B2D]' : 'text-[#94A3B8] hover:bg-[#1A2B42] hover:text-white' }}">
@@ -387,8 +387,8 @@
                 </a>
                 @endif
 
-                {{-- Application Log (Admin only) --}}
-                @if(auth()->user()?->isAdmin())
+                {{-- Application Log --}}
+                @if(auth()->user()?->hasPermission('logs', 'view'))
                 <a href="{{ route('logs.index') }}"
                    class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-smooth
                           {{ request()->routeIs('logs.*') ? 'bg-white text-[#0F1B2D]' : 'text-[#94A3B8] hover:bg-[#1A2B42] hover:text-white' }}">
@@ -449,8 +449,12 @@
                                 <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#EF4444]/10 text-[#DC2626] border border-[#EF4444]/20 uppercase">Admin</span>
                             @elseif(auth()->user()->isOperator())
                                 <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3B82F6]/10 text-[#2563EB] border border-[#3B82F6]/20 uppercase">Operator</span>
+                            @elseif(auth()->user()->isManager())
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8B5CF6]/10 text-[#7C3AED] border border-[#8B5CF6]/20 uppercase">Manager</span>
+                            @elseif(auth()->user()->isSupervisor())
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#64748B]/10 text-[#475569] border border-[#64748B]/20 uppercase">Supervisor</span>
                             @else
-                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#64748B]/10 text-[#475569] border border-[#64748B]/20 uppercase">Viewer</span>
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#64748B]/10 text-[#475569] border border-[#64748B]/20 uppercase">{{ auth()->user()->role_label }}</span>
                             @endif
                         </div>
                         <div class="text-[10px] text-[#94A3B8]">{{ auth()->user()->email }}</div>

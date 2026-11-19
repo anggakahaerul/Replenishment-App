@@ -18,70 +18,84 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 // ── Rute Terproteksi (Login Diperlukan) ────────────────────────────────────────
 Route::middleware('auth')->group(function () {
 
-    // Dashboard: Riwayat Analisis (Semua Role: Admin, Operator, Viewer)
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    // Dashboard: Riwayat Analisis
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->middleware('permission:dashboard,view')
+        ->name('dashboard');
     Route::delete('/dashboard/match-results/{id}', [DashboardController::class, 'destroyMatchResult'])
-        ->middleware('role:admin,operator')
+        ->middleware('permission:dashboard,delete')
         ->name('dashboard.match-results.destroy');
     Route::delete('/dashboard/match-batch', [DashboardController::class, 'destroyMatchBatch'])
-        ->middleware('role:admin,operator')
+        ->middleware('permission:matching,delete')
         ->name('dashboard.match-batch.destroy');
 
     // Halaman utama: Import & Matching
-    Route::get('/', [ReplenishmentController::class, 'index'])->name('replenishment.index');
+    Route::get('/', [ReplenishmentController::class, 'index'])
+        ->middleware('permission:matching,view')
+        ->name('replenishment.index');
 
     // Halaman History: Replenishment Report History
-    Route::get('/replenishment/report-history', [ReplenishmentController::class, 'reportHistory'])->name('replenishment.report-history');
+    Route::get('/replenishment/report-history', [ReplenishmentController::class, 'reportHistory'])
+        ->middleware('permission:report_history,view')
+        ->name('replenishment.report-history');
 
     // Halaman History: Analysis Replenishment History
-    Route::get('/replenishment/analysis-history', [ReplenishmentController::class, 'analysisHistory'])->name('replenishment.analysis-history');
+    Route::get('/replenishment/analysis-history', [ReplenishmentController::class, 'analysisHistory'])
+        ->middleware('permission:analysis_history,view')
+        ->name('replenishment.analysis-history');
 
     // Detail Hasil Matching (gabungan Shift 1 & Shift 2 per tanggal & cabang)
-    Route::get('/replenishment/match-detail', [ReplenishmentController::class, 'matchDetail'])->name('replenishment.match-detail');
+    Route::get('/replenishment/match-detail', [ReplenishmentController::class, 'matchDetail'])
+        ->middleware('permission:matching,view')
+        ->name('replenishment.match-detail');
 
     // Detail Import History
-    Route::get('/replenishment/history/{import}', [ReplenishmentController::class, 'showHistory'])->name('replenishment.history.show');
+    Route::get('/replenishment/history/{import}', [ReplenishmentController::class, 'showHistory'])
+        ->middleware('permission:matching,view')
+        ->name('replenishment.history.show');
 
-    // Download file import dari direktori lokal
-    Route::get('/replenishment/history/{import}/download', [ReplenishmentController::class, 'download'])->name('replenishment.history.download');
+    // Download file import dari database
+    Route::get('/replenishment/history/{import}/download', [ReplenishmentController::class, 'download'])
+        ->name('replenishment.history.download');
 
-    // Proses upload & matching (Admin & Operator saja)
+    // Proses upload & matching
     Route::post('/replenishment/import', [ReplenishmentController::class, 'store'])
-        ->middleware('role:admin,operator')
+        ->middleware('permission:matching,create')
         ->name('replenishment.import');
 
-    // Manajemen Pengguna & Role (Admin saja)
-    Route::middleware('role:admin')->prefix('users')->name('users.')->group(function () {
-        Route::get('/', [UserController::class, 'index'])->name('index');
-        Route::post('/', [UserController::class, 'store'])->name('store');
-        Route::put('/{user}', [UserController::class, 'update'])->name('update');
-        Route::delete('/{user}', [UserController::class, 'destroy'])->name('destroy');
+    // Manajemen Pengguna & Role
+    Route::prefix('users')->name('users.')->group(function () {
+        Route::get('/', [UserController::class, 'index'])->middleware('permission:users,view')->name('index');
+        Route::post('/', [UserController::class, 'store'])->middleware('permission:users,create')->name('store');
+        Route::put('/roles/{role}', [UserController::class, 'updateRolePermissions'])->middleware('permission:users,edit')->name('roles.update');
+        Route::put('/{user}', [UserController::class, 'update'])->middleware('permission:users,edit')->name('update');
+        Route::delete('/{user}', [UserController::class, 'destroy'])->middleware('permission:users,delete')->name('destroy');
     });
 
-    // Application Log (Admin saja)
-    Route::middleware('role:admin')->prefix('logs')->name('logs.')->group(function () {
-        Route::get('/', [AppLogController::class, 'index'])->name('index');
-        Route::post('/clear', [AppLogController::class, 'clearActivityLogs'])->name('clear');
+    // Application Log
+    Route::prefix('logs')->name('logs.')->group(function () {
+        Route::get('/', [AppLogController::class, 'index'])->middleware('permission:logs,view')->name('index');
+        Route::post('/clear', [AppLogController::class, 'clearActivityLogs'])->middleware('permission:logs,delete')->name('clear');
     });
 
-    // Master Data Cabang (Admin saja)
-    Route::middleware('role:admin')->prefix('master/branches')->name('master.branches.')->group(function () {
-        Route::get('/', [\App\Http\Controllers\BranchShiftController::class, 'indexBranches'])->name('index');
-        Route::post('/', [\App\Http\Controllers\BranchShiftController::class, 'storeBranch'])->name('store');
-        Route::put('/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'updateBranch'])->name('update');
-        Route::patch('/{branch}/toggle', [\App\Http\Controllers\BranchShiftController::class, 'toggleBranch'])->name('toggle');
-        Route::delete('/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'destroyBranch'])->name('destroy');
+    // Master Data Cabang
+    Route::prefix('master/branches')->name('master.branches.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\BranchShiftController::class, 'indexBranches'])->middleware('permission:master_branches,view')->name('index');
+        Route::post('/', [\App\Http\Controllers\BranchShiftController::class, 'storeBranch'])->middleware('permission:master_branches,create')->name('store');
+        Route::put('/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'updateBranch'])->middleware('permission:master_branches,edit')->name('update');
+        Route::patch('/{branch}/toggle', [\App\Http\Controllers\BranchShiftController::class, 'toggleBranch'])->middleware('permission:master_branches,edit')->name('toggle');
+        Route::delete('/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'destroyBranch'])->middleware('permission:master_branches,delete')->name('destroy');
     });
 
-    // Master Data Shift Management (Admin saja)
-    Route::middleware('role:admin')->prefix('master/shifts')->name('master.shifts.')->group(function () {
-        Route::get('/', [\App\Http\Controllers\BranchShiftController::class, 'index'])->name('index');
-        Route::post('/branch', [\App\Http\Controllers\BranchShiftController::class, 'storeBranch'])->name('branch.store');
-        Route::put('/branch/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'updateBranch'])->name('branch.update');
-        Route::patch('/branch/{branch}/toggle', [\App\Http\Controllers\BranchShiftController::class, 'toggleBranch'])->name('branch.toggle');
-        Route::delete('/branch/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'destroyBranch'])->name('branch.destroy');
-        Route::post('/branch/{branch}/shift', [\App\Http\Controllers\BranchShiftController::class, 'storeShift'])->name('shift.store');
-        Route::put('/shift/{shift}', [\App\Http\Controllers\BranchShiftController::class, 'updateShift'])->name('shift.update');
-        Route::delete('/shift/{shift}', [\App\Http\Controllers\BranchShiftController::class, 'destroyShift'])->name('shift.destroy');
+    // Master Data Shift Management
+    Route::prefix('master/shifts')->name('master.shifts.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\BranchShiftController::class, 'index'])->middleware('permission:master_shifts,view')->name('index');
+        Route::post('/branch', [\App\Http\Controllers\BranchShiftController::class, 'storeBranch'])->middleware('permission:master_shifts,create')->name('branch.store');
+        Route::put('/branch/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'updateBranch'])->middleware('permission:master_shifts,edit')->name('branch.update');
+        Route::patch('/branch/{branch}/toggle', [\App\Http\Controllers\BranchShiftController::class, 'toggleBranch'])->middleware('permission:master_shifts,edit')->name('branch.toggle');
+        Route::delete('/branch/{branch}', [\App\Http\Controllers\BranchShiftController::class, 'destroyBranch'])->middleware('permission:master_shifts,delete')->name('branch.destroy');
+        Route::post('/branch/{branch}/shift', [\App\Http\Controllers\BranchShiftController::class, 'storeShift'])->middleware('permission:master_shifts,create')->name('shift.store');
+        Route::put('/shift/{shift}', [\App\Http\Controllers\BranchShiftController::class, 'updateShift'])->middleware('permission:master_shifts,edit')->name('shift.update');
+        Route::delete('/shift/{shift}', [\App\Http\Controllers\BranchShiftController::class, 'destroyShift'])->middleware('permission:master_shifts,delete')->name('shift.destroy');
     });
 });

@@ -179,10 +179,17 @@
                                         {{ $item->imported_at ? $item->imported_at->format('d/m/Y H:i') : '-' }} WIB
                                     </td>
                                     <td style="text-align: center;">
-                                        <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background-color: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0;">
-                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #16A34A;"></span>
-                                            Tersimpan
-                                        </span>
+                                        @if($item->is_active ?? true)
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background-color: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0;">
+                                                <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #16A34A;"></span>
+                                                Aktif
+                                            </span>
+                                        @else
+                                            <span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background-color: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1;">
+                                                <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #94A3B8;"></span>
+                                                Arsip
+                                            </span>
+                                        @endif
                                     </td>
                                     <td style="text-align: center;">
                                         <div style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">

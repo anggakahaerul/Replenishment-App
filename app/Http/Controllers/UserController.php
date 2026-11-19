@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Branch;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,8 @@ class UserController extends Controller
             });
         }
 
-        if ($roleFilter !== '' && in_array($roleFilter, [User::ROLE_ADMIN, User::ROLE_OPERATOR, User::ROLE_VIEWER], true)) {
+        $allowedRoles = [User::ROLE_ADMIN, User::ROLE_OPERATOR, User::ROLE_SUPERVISOR, User::ROLE_MANAGER];
+        if ($roleFilter !== '' && in_array($roleFilter, $allowedRoles, true)) {
             $query->where('role', $roleFilter);
         }
 
@@ -42,8 +44,10 @@ class UserController extends Controller
 
         $users = $query->paginate(15)->withQueryString();
         $branches = Branch::orderBy('code')->get();
+        $roles = Role::orderBy('id')->get();
+        $permissionMenus = Role::MENU_PERMISSIONS;
 
-        return view('users.index', compact('users', 'branches', 'search', 'roleFilter', 'branchFilter'));
+        return view('users.index', compact('users', 'branches', 'roles', 'permissionMenus', 'search', 'roleFilter', 'branchFilter'));
     }
 
     /**
@@ -54,7 +58,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name'      => ['required', 'string', 'max:255'],
             'email'     => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'role'      => ['required', 'string', Rule::in([User::ROLE_ADMIN, User::ROLE_OPERATOR, User::ROLE_VIEWER])],
+            'role'      => ['required', 'string', Rule::in([User::ROLE_ADMIN, User::ROLE_OPERATOR, User::ROLE_SUPERVISOR, User::ROLE_MANAGER])],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'password'  => ['required', 'string', 'min:6'],
         ], [
@@ -96,7 +100,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name'      => ['required', 'string', 'max:255'],
             'email'     => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'role'      => ['required', 'string', Rule::in([User::ROLE_ADMIN, User::ROLE_OPERATOR, User::ROLE_VIEWER])],
+            'role'      => ['required', 'string', Rule::in([User::ROLE_ADMIN, User::ROLE_OPERATOR, User::ROLE_SUPERVISOR, User::ROLE_MANAGER])],
             'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
             'password'  => ['nullable', 'string', 'min:6'],
         ], [
@@ -132,6 +136,39 @@ class UserController extends Controller
 
         return redirect()->route('users.index')
             ->with('success', "Data pengguna '{$user->name}' berhasil diperbarui.");
+    }
+
+    /**
+     * Update permission matrix for a specific role.
+     */
+    public function updateRolePermissions(Request $request, Role $role): RedirectResponse
+    {
+        if ($role->slug === 'admin') {
+            return redirect()->route('users.index', ['tab' => 'roles'])
+                ->with('info', 'Role Admin (Super User) selalu memiliki akses penuh ke seluruh menu.');
+        }
+
+        $submitted = $request->input('permissions', []);
+        $matrix = [];
+
+        foreach (Role::MENU_PERMISSIONS as $menu => $meta) {
+            $matrix[$menu] = [];
+            foreach (array_keys($meta['actions']) as $action) {
+                $matrix[$menu][$action] = !empty($submitted[$menu][$action]);
+            }
+        }
+
+        $role->update(['permissions' => $matrix]);
+
+        \App\Models\ActivityLog::record(
+            \App\Models\ActivityLog::ACTION_USER_UPDATE,
+            "Memperbarui permission role '{$role->name}'.",
+            ['role_id' => $role->id, 'slug' => $role->slug],
+            \App\Models\ActivityLog::LEVEL_INFO
+        );
+
+        return redirect()->route('users.index', ['tab' => 'roles'])
+            ->with('success', "Permission role '{$role->name}' berhasil diperbarui.");
     }
 
     /**

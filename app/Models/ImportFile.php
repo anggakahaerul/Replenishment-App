@@ -12,6 +12,11 @@ class ImportFile extends Model
         'mime_type',
         'file_size',
         'file_content',
+        'parsed_payload',
+    ];
+
+    protected $casts = [
+        'parsed_payload' => 'array',
     ];
 
     /**

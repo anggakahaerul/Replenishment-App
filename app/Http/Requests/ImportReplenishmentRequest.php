@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class ImportReplenishmentRequest extends FormRequest
 {
@@ -21,16 +22,26 @@ class ImportReplenishmentRequest extends FormRequest
     {
         return [
             'report_file' => [
-                'required',
+                'nullable',
                 'file',
                 'mimes:xlsx,xls',
                 'max:10240', // 10MB
             ],
             'analysis_file' => [
-                'required',
+                'nullable',
                 'file',
                 'mimes:xlsx,xls',
                 'max:10240', // 10MB
+            ],
+            'target_shift' => [
+                'nullable',
+                'string',
+                'in:SHIFT 1,SHIFT 2',
+            ],
+            'category_mode' => [
+                'nullable',
+                'string',
+                'in:AUTO,DRY,FROZEN',
             ],
             'branch_id' => [
                 'nullable',
@@ -41,17 +52,34 @@ class ImportReplenishmentRequest extends FormRequest
     }
 
     /**
+     * Ensure at least one Excel file is provided.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            if (!$this->hasFile('report_file') && !$this->hasFile('analysis_file')) {
+                $validator->errors()->add(
+                    'report_file',
+                    'Minimal unggah salah satu berkas: Replenishment Report atau Analisa Replenishment.'
+                );
+            }
+        });
+    }
+
+    /**
      * Get custom messages for validator errors.
      */
     public function messages(): array
     {
         return [
-            'report_file.required' => 'File Replenishment Report wajib diunggah.',
+            'report_file.file' => 'Berkas Replenishment Report tidak valid.',
             'report_file.mimes' => 'File Replenishment Report harus berformat .xlsx atau .xls.',
             'report_file.max' => 'Ukuran file Replenishment Report maksimal 10MB.',
-            'analysis_file.required' => 'File Analisa Replenishment wajib diunggah.',
+            'analysis_file.file' => 'Berkas Analisa Replenishment tidak valid.',
             'analysis_file.mimes' => 'File Analisa Replenishment harus berformat .xlsx atau .xls.',
             'analysis_file.max' => 'Ukuran file Analisa Replenishment maksimal 10MB.',
+            'target_shift.in' => 'Target shift harus SHIFT 1 atau SHIFT 2.',
+            'category_mode.in' => 'Kategori data harus AUTO, DRY, atau FROZEN.',
         ];
     }
 }

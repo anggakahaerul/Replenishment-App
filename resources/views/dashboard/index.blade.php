@@ -113,6 +113,74 @@
             max-width: 900px;
             margin-bottom: 24px;
         }
+
+        .dash-th-wrap {
+            position: relative;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: inherit;
+            cursor: help;
+        }
+
+        .dash-th-label {
+            border-bottom: 1px dotted #94A3B8;
+            padding-bottom: 1px;
+        }
+
+        .dash-th-tip {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            width: 240px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background-color: #0F172A;
+            color: #F8FAFC;
+            font-size: 11.5px;
+            font-weight: 400;
+            line-height: 1.45;
+            text-align: left;
+            text-transform: none;
+            letter-spacing: normal;
+            white-space: normal;
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.35);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            z-index: 50;
+        }
+
+        .dash-th-tip.dash-th-tip-right {
+            left: auto;
+            right: 0;
+            transform: translateY(4px);
+        }
+
+        .dash-th-wrap:hover .dash-th-tip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .dash-th-wrap:hover .dash-th-tip.dash-th-tip-right {
+            transform: translateY(0);
+        }
+
+        .dash-th-tip strong {
+            color: #FFFFFF;
+            font-weight: 700;
+        }
+
+        .dash-th-tip-src {
+            display: block;
+            margin-top: 5px;
+            padding-top: 5px;
+            border-top: 1px solid rgba(148, 163, 184, 0.25);
+            color: #CBD5E1;
+            font-size: 11px;
+        }
     </style>
 
     <div
@@ -122,6 +190,7 @@
             shift1: {{ Js::from($shift1Card) }},
             shift2: {{ Js::from($shift2Card) }},
             allShift: {{ Js::from($allShiftCard) }},
+            cardDailyData: {{ Js::from($cardDailyData ?? []) }},
             trendData: {{ Js::from($trendData) }},
             matchHistoryItems: {{ Js::from($matchHistoryItems ?? []) }}
         })"
@@ -240,14 +309,74 @@
             </form>
         </div>
 
-        {{-- ===== 2. SHIFT STATISTICS CARDS ===== --}}
+        {{-- ===== 2. SHIFT CARDS PERIOD FILTER (HARIAN / MINGGUAN / BULANAN / DATE PICKER) ===== --}}
+        <div class="flex flex-wrap items-center justify-between gap-3" style="margin-bottom: 12px;">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="inline-flex items-center bg-[#F1F5F9] border border-[#E2E8F0] rounded-full p-1 gap-1">
+                    <button type="button" @click="cardPeriod = 'latest'"
+                        class="px-3.5 py-1 rounded-full text-[12px] transition-all cursor-pointer"
+                        :class="cardPeriod === 'latest' ? 'bg-white text-[#0F172A] shadow-sm font-semibold' : 'text-[#64748B] hover:text-[#0F172A] font-medium'">
+                        Hari Terakhir
+                    </button>
+                    <button type="button" @click="cardPeriod = 'week'"
+                        class="px-3.5 py-1 rounded-full text-[12px] transition-all cursor-pointer"
+                        :class="cardPeriod === 'week' ? 'bg-white text-[#0F172A] shadow-sm font-semibold' : 'text-[#64748B] hover:text-[#0F172A] font-medium'">
+                        Minggu Ini (7H)
+                    </button>
+                    <button type="button" @click="selectCardMonthMode()"
+                        class="px-3.5 py-1 rounded-full text-[12px] transition-all cursor-pointer"
+                        :class="cardPeriod === 'month' ? 'bg-white text-[#0F172A] shadow-sm font-semibold' : 'text-[#64748B] hover:text-[#0F172A] font-medium'">
+                        Bulanan
+                    </button>
+                    <button type="button" @click="cardPeriod = 'all'"
+                        class="px-3.5 py-1 rounded-full text-[12px] transition-all cursor-pointer"
+                        :class="cardPeriod === 'all' ? 'bg-white text-[#0F172A] shadow-sm font-semibold' : 'text-[#64748B] hover:text-[#0F172A] font-medium'">
+                        Semua
+                    </button>
+                    <button type="button" @click="selectCardCustomMode()"
+                        class="px-3.5 py-1 rounded-full text-[12px] transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                        :class="cardPeriod === 'custom' ? 'bg-white text-[#2563EB] shadow-sm font-semibold' : 'text-[#64748B] hover:text-[#0F172A] font-medium'">
+                        <svg style="width: 13px; height: 13px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Pilih Tanggal
+                    </button>
+                </div>
+
+                {{-- Month Selector when Bulanan is active --}}
+                <template x-if="cardPeriod === 'month' && availableCardMonths.length > 0">
+                    <select x-model="cardMonth"
+                        class="h-[34px] px-3 rounded-full border border-[#CBD5E1] bg-white text-[12px] font-semibold text-[#0F172A] outline-none focus:border-[#2563EB] cursor-pointer shadow-2xs">
+                        <template x-for="m in availableCardMonths" :key="m.key">
+                            <option :value="m.key" x-text="m.label"></option>
+                        </template>
+                    </select>
+                </template>
+
+                {{-- Date Picker Range when Pilih Tanggal is active --}}
+                <template x-if="cardPeriod === 'custom'">
+                    <div class="inline-flex items-center gap-2 bg-white border border-[#BFDBFE] rounded-full px-3.5 h-[34px] shadow-2xs">
+                        <input type="date" x-model="cardDateFrom"
+                            class="text-[12px] font-semibold text-[#0F172A] border-none outline-none bg-transparent cursor-pointer">
+                        <span class="text-[11px] text-[#94A3B8] font-semibold">s/d</span>
+                        <input type="date" x-model="cardDateTo"
+                            class="text-[12px] font-semibold text-[#0F172A] border-none outline-none bg-transparent cursor-pointer">
+                    </div>
+                </template>
+            </div>
+
+            <div class="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#64748B]">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#2563EB]"></span>
+                <span x-text="cardPeriodLabel"></span>
+            </div>
+        </div>
 
         {{-- ===== 2. 3 COMPACT SHIFT CARDS (SHIFT 1, SHIFT 2, ALL SHIFT) ===== --}}
         <div class="shift-cards-container">
             <template x-for="(card, cIdx) in [
-                { data: shift1, label: shift1.name || 'Shift 1', time: shift1.time_range || '06:00 - 14:00 WIB', badge: shift1.status || 'Selesai', accent: '#0F172A', isAll: false },
-                { data: shift2, label: shift2.name || 'Shift 2', time: shift2.time_range || '14:00 - 22:00 WIB', badge: shift2.status || 'Selesai', accent: '#2563EB', isAll: false },
-                { data: allShift, label: 'All Shift', time: 'Gabungan Shift 1 & 2', badge: 'Total', accent: '#16A34A', isAll: true }
+                { data: activeShiftCards.shift1, label: 'Shift 1', time: shift1.time_range || '06:00 - 14:00 WIB', badge: activeShiftCards.shift1.status || 'Selesai', accent: '#0F172A', isAll: false },
+                { data: activeShiftCards.shift2, label: 'Shift 2', time: shift2.time_range || '14:00 - 22:00 WIB', badge: activeShiftCards.shift2.status || 'Selesai', accent: '#2563EB', isAll: false },
+                { data: activeShiftCards.allShift, label: 'All Shift', time: 'Gabungan Shift 1 & 2', badge: activeShiftCards.allShift.status || 'Total', accent: '#16A34A', isAll: true }
             ]" :key="cIdx">
                 <div class="compact-shift-card" :style="card.isAll ? 'border-color: #BFDBFE; background-color: #FAFCFF;' : ''">
                     {{-- Header --}}
@@ -313,6 +442,30 @@
                 {{-- Filters on Right Side --}}
                 <div class="flex flex-col items-start lg:items-end gap-2.5">
                     <div class="flex flex-wrap items-center gap-2">
+                        {{-- Metric Mode Toggle (Jumlah vs Persentase) --}}
+                        <div class="inline-flex items-center bg-[#F1F5F9] border border-[#E2E8F0] rounded-full p-1 gap-1">
+                            <button
+                                type="button"
+                                @click="setMetricMode('count')"
+                                class="px-3.5 py-1 rounded-full text-[12px] transition-all"
+                                :class="trendMetricMode === 'count'
+                                    ? 'bg-white text-[#0F172A] shadow-sm font-semibold'
+                                    : 'text-[#64748B] hover:text-[#0F172A] font-medium'"
+                            >
+                                Jumlah
+                            </button>
+                            <button
+                                type="button"
+                                @click="setMetricMode('percent')"
+                                class="px-3.5 py-1 rounded-full text-[12px] transition-all"
+                                :class="trendMetricMode === 'percent'
+                                    ? 'bg-white text-[#2563EB] shadow-sm font-semibold'
+                                    : 'text-[#64748B] hover:text-[#0F172A] font-medium'"
+                            >
+                                Persentase (%)
+                            </button>
+                        </div>
+
                         {{-- Shift Filter Pills --}}
                         <div class="inline-flex items-center bg-[#F1F5F9] border border-[#E2E8F0] rounded-full p-1 gap-1">
                             <button
@@ -645,18 +798,126 @@
                         <tr class="bg-[#F1F5F9]/80 border-b border-[#E2E8F0]">
                             <th class="px-4 py-3 text-left text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">DATE</th>
                             <th class="px-4 py-3 text-center text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">CATEGORY</th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">SHIFT 1<br><span class="font-normal text-[10px]">MATCH</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#2563EB] tracking-wider uppercase whitespace-nowrap">SHIFT 2<br><span class="font-normal text-[10px]">MATCH</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">SHIFT 1<br><span class="font-normal text-[10px]">TOTAL</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">SHIFT 2<br><span class="font-normal text-[10px]">TOTAL</span></th>
-                            <th class="px-4 py-3 text-center text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">SHIFT 1<br><span class="font-normal text-[10px]">COMPL.</span></th>
-                            <th class="px-4 py-3 text-center text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">SHIFT 2<br><span class="font-normal text-[10px]">COMPL.</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#0F172A] tracking-wider uppercase whitespace-nowrap">TOTAL<br><span class="font-normal text-[10px]">TASKS</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#2563EB] tracking-wider uppercase whitespace-nowrap">MATCH<br><span class="font-normal text-[10px]">COUNT</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#64748B] tracking-wider uppercase whitespace-nowrap">PENDING<br><span class="font-normal text-[10px]">S1</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#64748B] tracking-wider uppercase whitespace-nowrap">PENDING<br><span class="font-normal text-[10px]">S2</span></th>
-                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#2563EB] tracking-wider uppercase whitespace-nowrap">MATCH<br><span class="font-normal text-[10px]">%</span></th>
-                            <th class="px-4 py-3 text-center text-[11px] font-bold text-[#DC2626] tracking-wider uppercase whitespace-nowrap">UNMATCH</th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">SHIFT 1<br><span class="font-normal text-[10px]">MATCH</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Shift 1 Match</strong><br>
+                                        Task Shift 1 yang sudah dikerjakan &amp; cocok.
+                                        <span class="dash-th-tip-src">Sumber: Task dari Report Shift 1 yang ketemu pasangannya (MATCH) di file Analisa Shift 1.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#2563EB] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">SHIFT 2<br><span class="font-normal text-[10px]">MATCH</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Shift 2 Match</strong><br>
+                                        Task Shift 2 yang sudah dikerjakan &amp; cocok.
+                                        <span class="dash-th-tip-src">Sumber: Task dari Report Shift 2 yang ketemu pasangannya (MATCH) di file Analisa Shift 2.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">SHIFT 1<br><span class="font-normal text-[10px]">TOTAL</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Shift 1 Total</strong><br>
+                                        Total target task yang harus dikerjakan di Shift 1.
+                                        <span class="dash-th-tip-src">Sumber: Jumlah task unik di Report Shift 1 (di luar Put Away, Transfer, &amp; Melebihi POC).</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">SHIFT 2<br><span class="font-normal text-[10px]">TOTAL</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Shift 2 Total</strong><br>
+                                        Total target task yang harus dikerjakan di Shift 2.
+                                        <span class="dash-th-tip-src">Sumber: Jumlah task unik di Report Shift 2 (di luar Put Away, Transfer, &amp; Melebihi POC).</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-center text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: center;">
+                                    <span class="dash-th-label">SHIFT 1<br><span class="font-normal text-[10px]">COMPL.</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Shift 1 Completion</strong><br>
+                                        Persentase kerja yang selesai di Shift 1.
+                                        <span class="dash-th-tip-src">Hitungannya: (Shift 1 Match ÷ Shift 1 Total) × 100%.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-center text-[11px] font-bold text-[#475569] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: center;">
+                                    <span class="dash-th-label">SHIFT 2<br><span class="font-normal text-[10px]">COMPL.</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Shift 2 Completion</strong><br>
+                                        Persentase kerja yang selesai di Shift 2.
+                                        <span class="dash-th-tip-src">Hitungannya: (Shift 2 Match ÷ Shift 2 Total) × 100%.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#0F172A] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">TOTAL<br><span class="font-normal text-[10px]">TASKS</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Total Tasks Harian</strong><br>
+                                        Total keseluruhan task unik dalam sehari (gabungan Shift 1 &amp; 2).
+                                        <span class="dash-th-tip-src">Sumber: Gabungan task unik Report Shift 1 &amp; 2 (task yang sama tidak dihitung dobel).</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#2563EB] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">MATCH<br><span class="font-normal text-[10px]">COUNT</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Match Count Harian</strong><br>
+                                        Jumlah task unik yang sudah selesai dikerjakan hari itu.
+                                        <span class="dash-th-tip-src">Sumber: Task unik dari Total Tasks yang sudah berstatus MATCH di Shift 1 atau Shift 2.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#64748B] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">PENDING<br><span class="font-normal text-[10px]">S1</span></span>
+                                    <span class="dash-th-tip">
+                                        <strong>Pending Shift 1</strong><br>
+                                        Sisa task Shift 1 yang belum dikerjakan atau belum ketemu di Analisa.
+                                        <span class="dash-th-tip-src">Hitungannya: Shift 1 Total dikurangi Shift 1 Match.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#64748B] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">PENDING<br><span class="font-normal text-[10px]">S2</span></span>
+                                    <span class="dash-th-tip dash-th-tip-right">
+                                        <strong>Pending Shift 2</strong><br>
+                                        Sisa task Shift 2 yang belum dikerjakan atau belum ketemu di Analisa.
+                                        <span class="dash-th-tip-src">Hitungannya: Shift 2 Total dikurangi Shift 2 Match.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-[11px] font-bold text-[#2563EB] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: flex-end;">
+                                    <span class="dash-th-label">MATCH<br><span class="font-normal text-[10px]">%</span></span>
+                                    <span class="dash-th-tip dash-th-tip-right">
+                                        <strong>Match Rate Harian</strong><br>
+                                        Persentase keberhasilan penyelesaian task harian secara keseluruhan.
+                                        <span class="dash-th-tip-src">Hitungannya: (Match Count ÷ Total Tasks) × 100%.</span>
+                                    </span>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-center text-[11px] font-bold text-[#DC2626] tracking-wider uppercase whitespace-nowrap">
+                                <span class="dash-th-wrap" style="align-items: center;">
+                                    <span class="dash-th-label">UNMATCH</span>
+                                    <span class="dash-th-tip dash-th-tip-right">
+                                        <strong>Unmatch (Sisa Pending)</strong><br>
+                                        Sisa task harian yang belum ketemu pasangannya di Analisa Shift 1 maupun Shift 2.
+                                        <span class="dash-th-tip-src">Hitungannya: Total Tasks dikurangi Match Count.</span>
+                                    </span>
+                                </span>
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-[#F1F5F9]">
@@ -816,7 +1077,7 @@
     </div>
 
     <script>
-        function dashboardAnalytics({ items, cumulative, shift1, shift2, allShift, trendData }) {
+        function dashboardAnalytics({ items, cumulative, shift1, shift2, allShift, cardDailyData, trendData }) {
             let trendChartInstance = null;
 
             return {
@@ -825,10 +1086,16 @@
                 shift1: shift1 || {},
                 shift2: shift2 || {},
                 allShift: allShift || {},
+                cardDailyData: cardDailyData || [],
+                cardPeriod: 'latest', // 'latest' | 'week' | 'month' | 'all' | 'custom'
+                cardMonth: '',
+                cardDateFrom: '',
+                cardDateTo: '',
                 trendData: trendData || {},
                 trendShift: 'all', // 'all', 'shift1', 'shift2'
                 trendCategory: 'all', // 'all', 'dry', 'frozen'
                 trendRange: '7d', // '7d', '14d', '30d', 'all', 'month:YYYY-MM'
+                trendMetricMode: 'count', // 'count' | 'percent'
                 currentAvgRate: trendData?.avg_rate || '0.0%',
                 shiftViewMode: 'split', // 'split' | 'all'
                 searchQuery: '',
@@ -842,19 +1109,136 @@
                 perPage: 10,
 
                 init() {
+                    if (this.availableCardMonths.length > 0) {
+                        this.cardMonth = this.availableCardMonths[this.availableCardMonths.length - 1].key;
+                    }
+                    if (this.cardDailyData.length > 0) {
+                        const last = this.cardDailyData[this.cardDailyData.length - 1].date;
+                        const first = this.cardDailyData[Math.max(0, this.cardDailyData.length - 7)].date;
+                        this.cardDateFrom = first;
+                        this.cardDateTo = last;
+                    }
                     this.$nextTick(() => {
                         this.initChart();
                     });
+                },
+
+                get availableCardMonths() {
+                    const monthNames = {
+                        '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+                        '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+                        '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+                    };
+                    const seen = new Map();
+                    (this.cardDailyData || []).forEach(d => {
+                        if (d.month && !seen.has(d.month)) {
+                            const [y, m] = d.month.split('-');
+                            seen.set(d.month, (monthNames[m] || m) + ' ' + y);
+                        }
+                    });
+                    return Array.from(seen.entries()).map(([key, label]) => ({ key, label }));
+                },
+
+                selectCardMonthMode() {
+                    if (!this.cardMonth && this.availableCardMonths.length > 0) {
+                        this.cardMonth = this.availableCardMonths[this.availableCardMonths.length - 1].key;
+                    }
+                    this.cardPeriod = 'month';
+                },
+
+                selectCardCustomMode() {
+                    if ((!this.cardDateFrom || !this.cardDateTo) && this.cardDailyData.length > 0) {
+                        this.cardDateTo = this.cardDailyData[this.cardDailyData.length - 1].date;
+                        this.cardDateFrom = this.cardDailyData[Math.max(0, this.cardDailyData.length - 7)].date;
+                    }
+                    this.cardPeriod = 'custom';
+                },
+
+                get filteredCardDays() {
+                    const days = this.cardDailyData || [];
+                    if (!days.length) return [];
+
+                    if (this.cardPeriod === 'latest') {
+                        return [days[days.length - 1]];
+                    }
+                    if (this.cardPeriod === 'week') {
+                        return days.slice(-7);
+                    }
+                    if (this.cardPeriod === 'month') {
+                        return days.filter(d => d.month === this.cardMonth);
+                    }
+                    if (this.cardPeriod === 'custom') {
+                        return days.filter(d => {
+                            if (this.cardDateFrom && d.date < this.cardDateFrom) return false;
+                            if (this.cardDateTo && d.date > this.cardDateTo) return false;
+                            return true;
+                        });
+                    }
+                    return days;
+                },
+
+                get cardPeriodLabel() {
+                    const days = this.filteredCardDays;
+                    if (!days.length) return 'Tidak ada data di rentang ini';
+                    if (this.cardPeriod === 'latest') return 'Data Terakhir: ' + days[0].date;
+                    if (this.cardPeriod === 'week') return `Akumulasi ${days.length} Hari Terakhir`;
+                    if (this.cardPeriod === 'month') {
+                        const found = this.availableCardMonths.find(m => m.key === this.cardMonth);
+                        return `Akumulasi ${found ? found.label : this.cardMonth} (${days.length} hari)`;
+                    }
+                    if (this.cardPeriod === 'all') return `Akumulasi Semua (${days.length} hari)`;
+                    if (days.length === 1) return `${days[0].date} (1 hari)`;
+                    return `${days[0].date} s/d ${days[days.length - 1].date} (${days.length} hari)`;
+                },
+
+                get activeShiftCards() {
+                    const days = this.filteredCardDays;
+                    if (this.cardPeriod === 'latest' && days.length <= 1 && (!days.length || days[0]?.date === this.allShift?.status)) {
+                        return { shift1: this.shift1, shift2: this.shift2, allShift: this.allShift };
+                    }
+
+                    const sumShift = (key, isAll = false) => {
+                        let total = 0, match = 0, pending = 0, putAway = 0, transfer = 0, poc = 0;
+                        days.forEach(d => {
+                            const s = d[key] || {};
+                            total += (s.total || 0);
+                            match += (s.match || 0);
+                            pending += (s.pending || 0);
+                            putAway += (s.put_away || 0);
+                            transfer += (s.transfer || 0);
+                            poc += (s.melebihi_poc || 0);
+                        });
+                        const pct = total > 0 ? Number(((match / total) * 100).toFixed(1)) : 0;
+                        const statusLabel = isAll
+                            ? (days.length === 1 ? days[0].date : `${days.length} Hari`)
+                            : (total > 0 ? 'Selesai' : 'Belum Ada Data');
+                        return {
+                            total_tasks: total,
+                            match_count: match,
+                            pending_count: pending,
+                            completion: pct.toFixed(1) + '%',
+                            completion_num: pct,
+                            put_away: putAway,
+                            transfer: transfer,
+                            melebihi_poc: poc,
+                            status: statusLabel,
+                        };
+                    };
+
+                    return {
+                        shift1: sumShift('s1', false),
+                        shift2: sumShift('s2', false),
+                        allShift: sumShift('all', true),
+                    };
                 },
 
                 initChart() {
                     const canvas = document.getElementById('trendMatchingChart');
                     if (!canvas || typeof Chart === 'undefined') return;
 
-                    const dates = this.trendData?.dates || [];
-                    if (dates.length === 0) return;
-
-                    const active = this.trendData?.[this.trendShift]?.[this.trendCategory] || {};
+                    const self = this;
+                    const active = this.getTrendSeries();
+                    const dates = active.dates || [];
                     const matched = active.matched || [];
                     const unmatch = active.unmatch || [];
                     const total = active.total || [];
@@ -873,7 +1257,12 @@
                                 if (val === undefined || val === null) return;
 
                                 const isLast = index === metaLine.data.length - 1;
-                                const text = String(val);
+                                const rawSeries = self.getTrendSeries();
+                                const mRaw = rawSeries.matchedRaw[index] ?? 0;
+                                const tRaw = rawSeries.totalRaw[index] ?? 0;
+                                const text = self.trendMetricMode === 'percent'
+                                    ? (tRaw > 0 ? ((mRaw / tRaw) * 100).toFixed(1) + '%' : '0.0%')
+                                    : String(val);
 
                                 ctx.save();
                                 ctx.font = isLast ? 'bold 12px Inter, sans-serif' : '600 12px Inter, sans-serif';
@@ -978,7 +1367,21 @@
                                     boxPadding: 4,
                                     callbacks: {
                                         label: function(ctx) {
-                                            return ' ' + ctx.dataset.label + ': ' + ctx.parsed.y;
+                                            const i = ctx.dataIndex;
+                                            const s = self.getTrendSeries();
+                                            const mRaw = s.matchedRaw[i] ?? 0;
+                                            const uRaw = s.unmatchRaw[i] ?? 0;
+                                            const tRaw = s.totalRaw[i] ?? 0;
+                                            const pct = tRaw > 0 ? ((ctx.datasetIndex === 0 ? mRaw : (ctx.datasetIndex === 1 ? uRaw : tRaw)) / tRaw * 100).toFixed(1) : '0.0';
+
+                                            if (self.trendMetricMode === 'percent') {
+                                                if (ctx.datasetIndex === 0) return ` Matched: ${ctx.parsed.y}% (${mRaw} / ${tRaw})`;
+                                                if (ctx.datasetIndex === 1) return ` Unmatch / Selisih POC: ${ctx.parsed.y}% (${uRaw} / ${tRaw})`;
+                                                return ` Target: 100% (${tRaw} tasks)`;
+                                            }
+                                            if (ctx.datasetIndex === 0) return ` Matched: ${mRaw} (${pct}%)`;
+                                            if (ctx.datasetIndex === 1) return ` Unmatch / Selisih POC: ${uRaw} (${pct}%)`;
+                                            return ` Target / Total Tasks: ${tRaw}`;
                                         }
                                     }
                                 }
@@ -1002,7 +1405,8 @@
                                     grace: '15%',
                                     ticks: {
                                         color: '#64748B',
-                                        font: { family: 'Inter, system-ui, sans-serif', size: 11, weight: '500' }
+                                        font: { family: 'Inter, system-ui, sans-serif', size: 11, weight: '500' },
+                                        callback: (val) => self.trendMetricMode === 'percent' ? (val <= 100 ? val + '%' : '') : val
                                     },
                                     grid: {
                                         color: '#F1F5F9',
@@ -1031,45 +1435,61 @@
 
                 getTrendSeries() {
                     const points = this.trendData?.points || [];
+                    let dates = [];
+                    let matchedRaw = [];
+                    let unmatchRaw = [];
+                    let totalRaw = [];
+
                     if (!points.length) {
                         const fallback = this.trendData?.[this.trendShift]?.[this.trendCategory] || {};
-                        return {
-                            dates: this.trendData?.dates || [],
-                            matched: fallback.matched || [],
-                            unmatch: fallback.unmatch || [],
-                            total: fallback.total || [],
-                            avg_rate: fallback.avg_rate || '0.0%',
-                        };
+                        dates = this.trendData?.dates || [];
+                        matchedRaw = fallback.matched || [];
+                        unmatchRaw = fallback.unmatch || [];
+                        totalRaw = fallback.total || [];
+                    } else {
+                        let filteredPoints = points;
+                        if (this.trendRange === '7d') filteredPoints = points.slice(-7);
+                        else if (this.trendRange === '14d') filteredPoints = points.slice(-14);
+                        else if (this.trendRange === '30d') filteredPoints = points.slice(-30);
+                        else if (this.trendRange.startsWith('month:')) {
+                            const mKey = this.trendRange.slice(6);
+                            filteredPoints = points.filter(p => p.month === mKey);
+                        }
+
+                        filteredPoints.forEach(p => {
+                            const vals = p?.[this.trendShift]?.[this.trendCategory] || [0, 0, 0];
+                            dates.push(p.label);
+                            matchedRaw.push(vals[0] || 0);
+                            unmatchRaw.push(vals[1] || 0);
+                            totalRaw.push(vals[2] || 0);
+                        });
                     }
 
-                    let filteredPoints = points;
-                    if (this.trendRange === '7d') filteredPoints = points.slice(-7);
-                    else if (this.trendRange === '14d') filteredPoints = points.slice(-14);
-                    else if (this.trendRange === '30d') filteredPoints = points.slice(-30);
-                    else if (this.trendRange.startsWith('month:')) {
-                        const mKey = this.trendRange.slice(6);
-                        filteredPoints = points.filter(p => p.month === mKey);
-                    }
-
-                    const dates = [];
-                    const matched = [];
-                    const unmatch = [];
-                    const total = [];
                     let sumMatched = 0;
                     let sumTotal = 0;
-
-                    filteredPoints.forEach(p => {
-                        const vals = p?.[this.trendShift]?.[this.trendCategory] || [0, 0, 0];
-                        dates.push(p.label);
-                        matched.push(vals[0] || 0);
-                        unmatch.push(vals[1] || 0);
-                        total.push(vals[2] || 0);
-                        sumMatched += (vals[0] || 0);
-                        sumTotal += (vals[2] || 0);
-                    });
-
+                    matchedRaw.forEach(v => { sumMatched += (v || 0); });
+                    totalRaw.forEach(v => { sumTotal += (v || 0); });
                     const avg_rate = sumTotal > 0 ? ((sumMatched / sumTotal) * 100).toFixed(1) + '%' : '0.0%';
-                    return { dates, matched, unmatch, total, avg_rate };
+
+                    if (this.trendMetricMode === 'percent') {
+                        const matchedPct = matchedRaw.map((m, i) => {
+                            const t = totalRaw[i] || 0;
+                            return t > 0 ? Number(((m / t) * 100).toFixed(1)) : 0;
+                        });
+                        const unmatchPct = unmatchRaw.map((u, i) => {
+                            const t = totalRaw[i] || 0;
+                            return t > 0 ? Number(((u / t) * 100).toFixed(1)) : 0;
+                        });
+                        const targetPct = totalRaw.map(t => (t > 0 ? 100 : 0));
+                        return { dates, matched: matchedPct, unmatch: unmatchPct, total: targetPct, matchedRaw, unmatchRaw, totalRaw, avg_rate };
+                    }
+
+                    return { dates, matched: matchedRaw, unmatch: unmatchRaw, total: totalRaw, matchedRaw, unmatchRaw, totalRaw, avg_rate };
+                },
+
+                setMetricMode(val) {
+                    this.trendMetricMode = val;
+                    this.updateChart();
                 },
 
                 setTrendRange(val) {
@@ -1096,6 +1516,7 @@
                         trendChartInstance.data.datasets[0].data = [...(active.matched || [])];
                         trendChartInstance.data.datasets[1].data = [...(active.unmatch || [])];
                         trendChartInstance.data.datasets[2].data = [...(active.total || [])];
+                        trendChartInstance.options.scales.y.max = this.trendMetricMode === 'percent' ? 115 : undefined;
                         trendChartInstance.update();
                     }
                 },
